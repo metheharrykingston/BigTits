@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "android": "./build_android_twa.sh",
+    "android:clean": "./build_android_twa.sh --clean",
+    "android:release": "./build_android_twa.sh --release",
     "lint": "eslint .",
     "preview": "vite preview"
   },

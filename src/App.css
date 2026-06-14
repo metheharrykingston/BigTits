@@ -182,3 +182,228 @@
     border-right-color: var(--border);
   }
 }
+
+/* ========== BigTits Live Demo Generator Styles ========== */
+.generator {
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 40px 24px 60px;
+  text-align: left;
+}
+
+.generator-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.generator-header h1 {
+  font-size: 42px;
+  margin: 0 0 8px;
+  letter-spacing: -1.2px;
+}
+
+.generator-header p {
+  font-size: 17px;
+  color: var(--text);
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.prompt-area {
+  margin-bottom: 16px;
+}
+
+.prompt-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.prompt-box {
+  width: 100%;
+  min-height: 108px;
+  padding: 16px 18px;
+  font-size: 17px;
+  line-height: 1.45;
+  font-family: var(--sans);
+  color: var(--text-h);
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  resize: vertical;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.prompt-box:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-bg);
+}
+
+.examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.example-chip {
+  padding: 6px 14px;
+  font-size: 13px;
+  background: var(--accent-bg);
+  color: var(--text-h);
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.example-chip:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.generate-btn {
+  width: 100%;
+  padding: 16px 28px;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.generate-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.generate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.status {
+  margin: 24px 0;
+  padding: 16px 20px;
+  background: var(--code-bg);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-size: 15px;
+}
+
+.status .step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0;
+}
+
+.status .spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.result {
+  margin-top: 24px;
+  padding: 24px;
+  background: var(--bg);
+  border: 2px solid var(--accent);
+  border-radius: 14px;
+}
+
+.result.success {
+  border-color: #22c55e;
+}
+
+.result h3 {
+  margin: 0 0 12px;
+  font-size: 22px;
+  color: #22c55e;
+}
+
+.result .path {
+  font-family: var(--mono);
+  background: var(--code-bg);
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  word-break: break-all;
+  border: 1px solid var(--border);
+  margin: 12px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.result .copy-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.result .copy-btn:hover {
+  background: var(--accent-bg);
+}
+
+.next-steps {
+  margin-top: 16px;
+}
+
+.next-steps code {
+  display: block;
+  margin: 6px 0;
+  padding: 8px 12px;
+  background: var(--code-bg);
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.error-box {
+  margin-top: 20px;
+  padding: 16px 18px;
+  background: #fee2e2;
+  color: #991b1b;
+  border-radius: 10px;
+  border: 1px solid #fecaca;
+  font-size: 15px;
+}
+
+@media (max-width: 1024px) {
+  .generator {
+    padding: 24px 16px 40px;
+  }
+  .generator-header h1 {
+    font-size: 32px;
+  }
+}

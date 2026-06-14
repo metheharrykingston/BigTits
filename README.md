@@ -72,3 +72,16 @@ export default defineConfig([
 ])
 ```
 # smartrank-frontend
+
+## Android builds
+
+The Android wrapper is a Trusted Web Activity, so normal app iteration only
+needs an incremental Gradle debug build:
+
+```bash
+npm run android
+```
+
+Use `npm run android:release` when you need the signed APK and Play Store AAB.
+Use `npm run android:clean` only when stale generated output requires a clean
+rebuild; cleaning discards Gradle's incremental build work.
