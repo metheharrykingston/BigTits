@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.harrykingston.bigtits",
+      "sha256_cert_fingerprints": [
+        "80:C2:68:39:84:F5:B8:A9:BA:92:62:BD:95:68:0A:3F:FA:40:3B:F1:68:48:D8:EE:A4:6B:74:FF:73:FB:7A:67"
+      ]
+    }
+  }
+]

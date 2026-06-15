@@ -5,8 +5,11 @@ interface CreateResponse {
   success: boolean
   stage?: string
   prompt?: string
-  intent?: any
-  generate?: any
+  intent?: {
+    message?: string
+    [key: string]: unknown
+  }
+  generate?: Record<string, unknown>
   projectPath?: string
   relativePath?: string
   previewUrl?: string
@@ -65,7 +68,7 @@ function App() {
 
       // Clear the input for quick follow-up generations
       setPrompt("")
-    } catch (e: any) {
+    } catch {
       setError(
         "Could not connect to the generator. Please make sure the backend services are running."
       )
@@ -80,7 +83,7 @@ function App() {
     runDemo(prompt)
   }
 
-  const useExample = (example: string) => {
+  const selectExample = (example: string) => {
     setPrompt(example)
     // Auto-trigger for fast live demos
     setTimeout(() => runDemo(example), 60)
@@ -122,7 +125,7 @@ function App() {
                 key={i}
                 type="button"
                 className="example-chip"
-                onClick={() => useExample(ex)}
+                onClick={() => selectExample(ex)}
                 disabled={isLoading}
               >
                 {ex}
@@ -165,28 +168,28 @@ function App() {
         {/* Clean, friendly success view — hide internals, focus on the preview */}
         {result && result.success && result.projectPath && (
           <div className="result success">
-            <h3>🎉 Your project is ready!</h3>
+            <h3>Your project is ready!</h3>
 
             {result.previewUrl ? (
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ marginBottom: 12 }}>
+              <div className="preview-section">
+                <div className="preview-heading">
                   <strong>Live Preview</strong>
-                  <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 4 }}>
+                  <div className="preview-description">
                     Play with it below — edits will hot-reload automatically.
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                <div className="preview-actions">
                   <button
                     onClick={() => window.open(result.previewUrl, '_blank')}
-                    style={{ padding: '10px 18px', borderRadius: 8, border: '2px solid #22c55e', background: '#f0fdf4', cursor: 'pointer', fontWeight: 600 }}
+                    className="action-btn action-btn-primary"
                   >
                     Open in new tab ↗
                   </button>
                   <button
                     onClick={async () => {
                       if (!result.projectPath) return;
-                      await fetch('/api/preview/stop', {
+                      await fetch(`${API_URL}/api/preview/stop`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ projectPath: result.projectPath }),
@@ -194,7 +197,7 @@ function App() {
                       // Refresh state so user sees the start button again
                       setResult({ ...result, previewUrl: undefined });
                     }}
-                    style={{ padding: '10px 18px', borderRadius: 8, border: '1px solid #ccc', background: 'white', cursor: 'pointer' }}
+                    className="action-btn action-btn-secondary"
                   >
                     Stop preview server
                   </button>
@@ -203,13 +206,7 @@ function App() {
                 {/* The live preview is the main thing the user cares about */}
                 <iframe
                   src={result.previewUrl}
-                  style={{
-                    width: '100%',
-                    height: '620px',
-                    border: '2px solid #22c55e',
-                    borderRadius: '10px',
-                    background: 'white',
-                  }}
+                  className="preview-frame"
                   title="Live project preview"
                 />
               </div>
@@ -221,7 +218,7 @@ function App() {
                 <button
                   onClick={async () => {
                     if (!result.projectPath) return;
-                    const res = await fetch('/api/preview/start', {
+                    const res = await fetch(`${API_URL}/api/preview/start`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ projectPath: result.projectPath }),
@@ -233,15 +230,15 @@ function App() {
                       alert('Could not start preview. The backend services might need attention.');
                     }
                   }}
-                  style={{ padding: '10px 18px', borderRadius: 8, border: '2px solid #22c55e', background: '#f0fdf4', cursor: 'pointer', fontWeight: 600 }}
+                  className="action-btn action-btn-primary"
                 >
-                  ▶ Launch Live Preview
+                  Launch Live Preview
                 </button>
               </div>
             )}
 
             {/* Gentle, non-technical info about the project */}
-            <div style={{ marginBottom: 16, fontSize: 14, color: 'var(--text)' }}>
+            <div className="project-note">
               Your project was generated and is saved on disk.
               You can keep editing the files locally anytime.
             </div>
@@ -250,21 +247,14 @@ function App() {
 
             <button
               onClick={reset}
-              style={{
-                marginTop: 12,
-                padding: '10px 20px',
-                background: 'transparent',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                cursor: 'pointer',
-              }}
+              className="reset-btn"
             >
               Build another project
             </button>
           </div>
         )}
 
-        <div style={{ marginTop: 48, fontSize: 12, color: 'var(--text)', textAlign: 'center', opacity: 0.6 }}>
+        <div className="footer-note">
           Instant AI-generated projects with live preview
         </div>
       </div>
