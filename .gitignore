@@ -12,6 +12,16 @@ dist
 dist-ssr
 *.local
 
+# Android/Gradle build output
+pwa-android-twa/.gradle/
+pwa-android-twa/build/
+pwa-android-twa/app/build/
+pwa-android-twa/local.properties
+*.apk
+*.aab
+*.keystore
+*.jks
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

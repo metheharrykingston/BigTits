@@ -9,6 +9,8 @@ interface CreateResponse {
   generate?: any
   projectPath?: string
   relativePath?: string
+  previewUrl?: string
+  previewPort?: number
   nextSteps?: string[]
   error?: string
 }
@@ -20,6 +22,8 @@ const EXAMPLE_PROMPTS = [
   "A simple React dashboard",
   "Website for a local bakery",
 ]
+
+const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 
 function App() {
   const [prompt, setPrompt] = useState("")
@@ -37,12 +41,12 @@ function App() {
     setStatus("Connecting to Node API...")
 
     try {
-      // Simulate staged UX while the real call (which does npm install) runs
+      // Simulate staged UX while the real call (which does pnpm install into the shared store) runs
       await new Promise(r => setTimeout(r, 220))
 
       setStatus("Detecting your intention with the Python Core...")
 
-      const res = await fetch('/api/create', {
+      const res = await fetch(`${API_URL}/api/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: finalPrompt.trim() }),
@@ -63,7 +67,7 @@ function App() {
       setPrompt("")
     } catch (e: any) {
       setError(
-        "Could not reach the Node.js API. Make sure it's running on port 3001 (npm run dev inside api/)."
+        "Could not connect to the generator. Please make sure the backend services are running."
       )
     } finally {
       setIsLoading(false)
@@ -82,14 +86,6 @@ function App() {
     setTimeout(() => runDemo(example), 60)
   }
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      const orig = status
-      setStatus("Copied to clipboard!")
-      setTimeout(() => setStatus(orig || ""), 1400)
-    })
-  }
-
   const reset = () => {
     setResult(null)
     setError("")
@@ -103,17 +99,17 @@ function App() {
         <div className="generator-header">
           <h1>BigTits</h1>
           <p>
-            Tell us what you want. The system will understand your intention,
-            pick a template, generate a real project, and install everything.
+            Tell us what you want to build in plain English.<br />
+            We'll generate a complete, ready-to-edit project with a live preview you can play with instantly.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="prompt-area">
-          <label className="prompt-label">What do you want to build?</label>
+          <label className="prompt-label">Describe your project</label>
 
           <textarea
             className="prompt-box"
-            placeholder="Create a beautiful website for my cafe with a menu and contact form..."
+            placeholder="A modern website for my cafe with menu, hours, and online ordering..."
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             disabled={isLoading}
@@ -140,14 +136,14 @@ function App() {
             disabled={isLoading || !prompt.trim()}
           >
             {isLoading ? (
-              <>Generating your project… (may take 30–60s for install)</>
+              <>Building your project…</>
             ) : (
-              "Generate Real Project →"
+              "Generate Project →"
             )}
           </button>
         </form>
 
-        {/* Live status while the full pipeline (Node → Core → copy + npm install) runs */}
+        {/* Clean, user-friendly loading */}
         {(isLoading || status) && (
           <div className="status">
             {isLoading && <div className="step"><span className="spinner" /> {status || "Working..."}</div>}
@@ -155,69 +151,107 @@ function App() {
           </div>
         )}
 
-        {/* Error state */}
+        {/* Friendly error — no scary internals */}
         {error && (
           <div className="error-box">
-            <strong>Error:</strong> {error}
-            <div style={{ marginTop: 8, fontSize: 13, opacity: 0.85 }}>
-              Quick checklist:<br />
-              1. Start Python Core: <code>cd core && source venv/bin/activate && python main.py</code><br />
-              2. Start this API: <code>cd api && npm run dev</code><br />
-              3. Refresh this page and try again.
-            </div>
+            <strong>Something went wrong.</strong>
+            <p style={{ margin: '8px 0 0', fontSize: 14 }}>
+              The generator services may not be running right now.
+              Try the <strong>"Start Live Preview Now"</strong> button on a previous result, or refresh and try again.
+            </p>
           </div>
         )}
 
-        {/* Success result — real generated project on disk */}
+        {/* Clean, friendly success view — hide internals, focus on the preview */}
         {result && result.success && result.projectPath && (
           <div className="result success">
-            <h3>✅ Project generated successfully</h3>
+            <h3>🎉 Your project is ready!</h3>
 
-            <div>
-              <strong>Project path (absolute — ready to use):</strong>
-              <div className="path">
-                <span>{result.projectPath}</span>
-                <button
-                  className="copy-btn"
-                  onClick={() => copyToClipboard(result.projectPath!)}
-                >
-                  Copy
-                </button>
+            {result.previewUrl ? (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ marginBottom: 12 }}>
+                  <strong>Live Preview</strong>
+                  <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 4 }}>
+                    Play with it below — edits will hot-reload automatically.
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => window.open(result.previewUrl, '_blank')}
+                    style={{ padding: '10px 18px', borderRadius: 8, border: '2px solid #22c55e', background: '#f0fdf4', cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    Open in new tab ↗
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!result.projectPath) return;
+                      await fetch('/api/preview/stop', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ projectPath: result.projectPath }),
+                      });
+                      // Refresh state so user sees the start button again
+                      setResult({ ...result, previewUrl: undefined });
+                    }}
+                    style={{ padding: '10px 18px', borderRadius: 8, border: '1px solid #ccc', background: 'white', cursor: 'pointer' }}
+                  >
+                    Stop preview server
+                  </button>
+                </div>
+
+                {/* The live preview is the main thing the user cares about */}
+                <iframe
+                  src={result.previewUrl}
+                  style={{
+                    width: '100%',
+                    height: '620px',
+                    border: '2px solid #22c55e',
+                    borderRadius: '10px',
+                    background: 'white',
+                  }}
+                  title="Live project preview"
+                />
               </div>
-            </div>
-
-            {result.intent && (
-              <div style={{ margin: '12px 0', fontSize: 14 }}>
-                <strong>Detected template:</strong> <code>{result.intent.template_slug}</code>
-                {result.intent.confidence !== undefined && (
-                  <> &nbsp;· confidence {result.intent.confidence}</>
-                )}
+            ) : (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ color: '#854d0e', marginBottom: 8 }}>
+                  Preview not ready yet.
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!result.projectPath) return;
+                    const res = await fetch('/api/preview/start', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ projectPath: result.projectPath }),
+                    });
+                    const data = await res.json();
+                    if (data.success && data.previewUrl) {
+                      setResult({ ...result, previewUrl: data.previewUrl, previewPort: data.port });
+                    } else {
+                      alert('Could not start preview. The backend services might need attention.');
+                    }
+                  }}
+                  style={{ padding: '10px 18px', borderRadius: 8, border: '2px solid #22c55e', background: '#f0fdf4', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  ▶ Launch Live Preview
+                </button>
               </div>
             )}
 
-            <div className="next-steps">
-              <strong>Next steps (copy &amp; run in your terminal):</strong>
-              {result.nextSteps && result.nextSteps.length > 0 ? (
-                result.nextSteps.map((step, idx) => (
-                  <code key={idx} onClick={() => copyToClipboard(step)} style={{ cursor: 'pointer' }}>
-                    {step}
-                  </code>
-                ))
-              ) : (
-                <>
-                  <code>cd {result.projectPath}</code>
-                  <code>npm run dev</code>
-                </>
-              )}
-              <div style={{ fontSize: 13, marginTop: 8, color: 'var(--text)' }}>
-                The project was fully set up (npm install already ran during generation).
-              </div>
+            {/* Gentle, non-technical info about the project */}
+            <div style={{ marginBottom: 16, fontSize: 14, color: 'var(--text)' }}>
+              Your project was generated and is saved on disk.
+              You can keep editing the files locally anytime.
             </div>
+
+            {/* Hidden the raw path, template details, pnpm notes, internal flow text */}
 
             <button
               onClick={reset}
               style={{
-                marginTop: 20,
+                marginTop: 12,
                 padding: '10px 20px',
                 background: 'transparent',
                 border: '1px solid var(--border)',
@@ -225,13 +259,13 @@ function App() {
                 cursor: 'pointer',
               }}
             >
-              Generate another project
+              Build another project
             </button>
           </div>
         )}
 
-        <div style={{ marginTop: 48, fontSize: 13, color: 'var(--text)', textAlign: 'center' }}>
-          Full flow: React → Node.js API (this proxy) → Python Core (intention + generator + executor)
+        <div style={{ marginTop: 48, fontSize: 12, color: 'var(--text)', textAlign: 'center', opacity: 0.6 }}>
+          Instant AI-generated projects with live preview
         </div>
       </div>
 

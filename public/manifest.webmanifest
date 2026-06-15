@@ -1,13 +1,13 @@
 {
-  "name": "My TWA",
-  "short_name": "My TWA",
-  "description": "Android PWA wrapper",
+  "name": "BigTits",
+  "short_name": "BigTits",
+  "description": "BigTits AI application builder",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "background_color": "#050607",
+  "theme_color": "#050607",
   "icons": [
     {
       "src": "/icon-192.png",
@@ -16,6 +16,11 @@
     },
     {
       "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
