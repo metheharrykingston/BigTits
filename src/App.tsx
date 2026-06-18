@@ -53,24 +53,13 @@ const STATUS_LABELS: Record<BackendStatus, string> = {
   unconfigured: 'Setup',
 }
 
-const RAILWAY_API_HOST = 'bigtits-api-production.up.railway.app'
-
 function isLocalPreviewUrl(url: string): boolean {
   return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(url)
 }
 
 function getPreviewSrc(url?: string): string | null {
   if (!url || isLocalPreviewUrl(url)) return null
-
-  try {
-    const parsed = new URL(url)
-    if (import.meta.env.PROD && parsed.hostname === RAILWAY_API_HOST && parsed.pathname.startsWith('/preview/')) {
-      return `${parsed.pathname}${parsed.search}`
-    }
-    return url
-  } catch {
-    return isLocalPreviewUrl(url) ? null : url
-  }
+  return url
 }
 
 async function checkBackendStatus(): Promise<StatusResponse> {
@@ -401,6 +390,8 @@ function App() {
                   </p>
                   <a
                     href={previewSrc}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="w-full max-w-xs border border-white px-4 py-3 text-sm text-white hover:bg-neutral-900"
                   >
                     View preview

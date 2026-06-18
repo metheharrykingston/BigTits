@@ -2,11 +2,7 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/preview/:path*",
-      "destination": "https://bigtits-api-production.up.railway.app/preview/:path*"
-    },
-    {
-      "source": "/((?!api/|preview/).*)",
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ]
