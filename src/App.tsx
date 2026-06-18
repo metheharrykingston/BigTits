@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { FileWriterPanel } from './FileWriterPanel'
 import './index.css'
 
 interface CreateResponse {
@@ -23,14 +24,6 @@ const EXAMPLE_PROMPTS = [
   { label: 'Furniture shop', prompt: 'Create a furniture store website' },
   { label: 'Cafe website', prompt: 'Create a website for my cafe' },
   { label: 'Portfolio', prompt: 'Make a personal portfolio website' },
-]
-
-const PIPELINE_STEPS = [
-  'Connecting',
-  'Understanding intent',
-  'Generating project',
-  'Installing dependencies',
-  'Finalizing',
 ]
 
 const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
@@ -107,8 +100,6 @@ function ExternalLinkIcon() {
 function App() {
   const [prompt, setPrompt] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [status, setStatus] = useState('')
-  const [activeStep, setActiveStep] = useState(0)
   const [result, setResult] = useState<CreateResponse | null>(null)
   const [error, setError] = useState('')
   const [errorHint, setErrorHint] = useState('')
@@ -116,6 +107,9 @@ function App() {
   const [backendMessage, setBackendMessage] = useState('')
   const [submittedPrompt, setSubmittedPrompt] = useState('')
   const [isMobile, setIsMobile] = useState(false)
+  const [flushFiles, setFlushFiles] = useState(false)
+  const pendingResultRef = useRef<CreateResponse | null>(null)
+  const loadStartedAtRef = useRef(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const previewSrc = getPreviewSrc(result?.previewUrl)
@@ -157,26 +151,23 @@ function App() {
     if (!finalPrompt.trim() || isLoading) return
 
     setIsLoading(true)
+    setFlushFiles(false)
+    pendingResultRef.current = null
     setError('')
     setErrorHint('')
     setResult(null)
-    setActiveStep(0)
     setSubmittedPrompt(finalPrompt.trim())
-    setStatus('Connecting to API')
+    loadStartedAtRef.current = Date.now()
+
+    let generationSucceeded = false
 
     try {
-      await new Promise(r => setTimeout(r, 220))
-      setActiveStep(1)
-      setStatus('Understanding intent')
-
       const res = await fetch(`${API_URL}/api/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: finalPrompt.trim() }),
       })
 
-      setActiveStep(2)
-      setStatus('Generating project')
       const data = await res.json() as CreateResponse & { hint?: string }
 
       if (!res.ok || !data.success) {
@@ -187,13 +178,12 @@ function App() {
               ? 'Set RAILWAY_API_URL in Vercel to your Railway API URL, then redeploy.'
               : 'Check that both Railway services (API + Core) are running.'),
         )
-        setStatus('')
         return
       }
 
-      setActiveStep(4)
-      setStatus('Done')
-      setResult(data)
+      generationSucceeded = true
+      pendingResultRef.current = data
+      setFlushFiles(true)
       setPrompt('')
     } catch {
       setError('Could not connect to the generator')
@@ -203,9 +193,25 @@ function App() {
           : 'Run npm run dev from the repo root to start Core + API + frontend together.',
       )
     } finally {
-      setIsLoading(false)
-      setStatus('')
+      if (!generationSucceeded) {
+        setIsLoading(false)
+        setFlushFiles(false)
+      }
     }
+  }
+
+  const handleFileWriterFinish = () => {
+    const minDuration = 2200
+    const elapsed = Date.now() - loadStartedAtRef.current
+    const remaining = Math.max(0, minDuration - elapsed)
+
+    window.setTimeout(() => {
+      const ready = pendingResultRef.current
+      if (ready) setResult(ready)
+      pendingResultRef.current = null
+      setIsLoading(false)
+      setFlushFiles(false)
+    }, remaining)
   }
 
   const handleSubmit = (e?: React.FormEvent) => {
@@ -230,9 +236,8 @@ function App() {
     setError('')
     setErrorHint('')
     setPrompt('')
-    setStatus('')
     setSubmittedPrompt('')
-    setActiveStep(0)
+    setFlushFiles(false)
   }
 
   const showComposer = !result
@@ -283,34 +288,18 @@ function App() {
             </div>
           )}
 
-          {/* Loading */}
+          {/* File writer — runs while API generates */}
           {isLoading && (
-            <div className="flex flex-1 flex-col px-6 py-8 animate-fade-in">
-              <div className="mx-auto w-full max-w-xl">
-                <p className="mb-6 text-sm text-neutral-500">{submittedPrompt}</p>
-
-                <div className="mb-6 flex items-center gap-3">
-                  <div className="h-4 w-4 animate-spin-slow rounded-full border border-neutral-700 border-t-white" />
-                  <p className="text-sm text-neutral-300">{status || 'Working'}</p>
-                </div>
-
-                <div className="space-y-2 border-l border-neutral-800 pl-4">
-                  {PIPELINE_STEPS.map((step, i) => {
-                    const done = i < activeStep
-                    const active = i === activeStep
-                    return (
-                      <p
-                        key={step}
-                        className={`text-sm ${
-                          active ? 'text-white' : done ? 'text-neutral-500' : 'text-neutral-700'
-                        }`}
-                      >
-                        {step}
-                      </p>
-                    )
-                  })}
-                </div>
-              </div>
+            <div className="flex min-h-0 flex-1 flex-col animate-fade-in">
+              <p className="shrink-0 px-4 pt-4 text-center text-xs text-neutral-600">
+                {submittedPrompt}
+              </p>
+              <FileWriterPanel
+                prompt={submittedPrompt}
+                active={isLoading}
+                flush={flushFiles}
+                onFinish={handleFileWriterFinish}
+              />
             </div>
           )}
 
