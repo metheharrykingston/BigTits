@@ -30,10 +30,16 @@ Also recommended:
 
 ```text
 HOST=0.0.0.0
+PUBLIC_API_URL=https://bigtits-api-production.up.railway.app
+PREVIEW_MODE=static
 GENERATED_DIR=/data/generated
-ENABLE_LIVE_PREVIEWS=false
+ENABLE_LIVE_PREVIEWS=true
 ENABLE_EXECUTE_PROXY=false
 ```
+
+`PUBLIC_API_URL` lets the API return mobile-friendly preview links like
+`https://bigtits-api-production.up.railway.app/preview/your-project/`
+instead of `http://localhost:5175`.
 
 Attach a volume at `/data` on the API service so generated projects persist.
 

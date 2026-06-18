@@ -53,6 +53,31 @@ const STATUS_LABELS: Record<BackendStatus, string> = {
   unconfigured: 'Setup',
 }
 
+const RAILWAY_API_HOST = 'bigtits-api-production.up.railway.app'
+
+function isLocalPreviewUrl(url: string): boolean {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(url)
+}
+
+function getPreviewSrc(url?: string): string | null {
+  if (!url || isLocalPreviewUrl(url)) return null
+
+  try {
+    const parsed = new URL(url)
+    if (parsed.hostname === RAILWAY_API_HOST && parsed.pathname.startsWith('/preview/')) {
+      return `/api/preview${parsed.pathname.slice('/preview'.length)}${parsed.search}`
+    }
+    return url
+  } catch {
+    return isLocalPreviewUrl(url) ? null : url
+  }
+}
+
+function getExternalPreviewUrl(url?: string): string | null {
+  if (!url || isLocalPreviewUrl(url)) return null
+  return url
+}
+
 async function checkBackendStatus(): Promise<StatusResponse> {
   try {
     const url = import.meta.env.PROD ? '/api/status' : (API_URL ? `${API_URL}/ready` : '/ready')
@@ -106,7 +131,11 @@ function App() {
   const [backendStatus, setBackendStatus] = useState<BackendStatus>('checking')
   const [backendMessage, setBackendMessage] = useState('')
   const [submittedPrompt, setSubmittedPrompt] = useState('')
+  const [isMobile, setIsMobile] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const previewSrc = getPreviewSrc(result?.previewUrl)
+  const externalPreviewUrl = getExternalPreviewUrl(result?.previewUrl)
 
   useEffect(() => {
     let cancelled = false
@@ -132,6 +161,14 @@ function App() {
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`
   }, [prompt])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px), (pointer: coarse)')
+    const update = () => setIsMobile(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
 
   const runDemo = async (finalPrompt: string) => {
     if (!finalPrompt.trim() || isLoading) return
@@ -321,29 +358,36 @@ function App() {
                   <p className="text-xs text-neutral-500">Generated and saved to disk</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {result.previewUrl && (
+                  {previewSrc && (
                     <>
                       <button
-                        onClick={() => window.open(result.previewUrl, '_blank')}
+                        onClick={() => {
+                          const href = previewSrc.startsWith('/')
+                            ? `${window.location.origin}${previewSrc}`
+                            : previewSrc
+                          window.open(href, '_blank')
+                        }}
                         className="flex items-center gap-1.5 border border-neutral-700 px-2.5 py-1 text-xs text-neutral-300 hover:border-neutral-500 hover:text-white"
                       >
                         <ExternalLinkIcon />
                         Open
                       </button>
-                      <button
-                        onClick={async () => {
-                          if (!result.projectPath) return
-                          await fetch(`${API_URL}/api/preview/stop`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ projectPath: result.projectPath }),
-                          })
-                          setResult({ ...result, previewUrl: undefined })
-                        }}
-                        className="border border-neutral-800 px-2.5 py-1 text-xs text-neutral-500 hover:border-neutral-600 hover:text-neutral-300"
-                      >
-                        Stop
-                      </button>
+                      {!import.meta.env.PROD && (
+                        <button
+                          onClick={async () => {
+                            if (!result.projectPath) return
+                            await fetch(`${API_URL}/api/preview/stop`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ projectPath: result.projectPath }),
+                            })
+                            setResult({ ...result, previewUrl: undefined })
+                          }}
+                          className="border border-neutral-800 px-2.5 py-1 text-xs text-neutral-500 hover:border-neutral-600 hover:text-neutral-300"
+                        >
+                          Stop
+                        </button>
+                      )}
                     </>
                   )}
                   <button
@@ -355,20 +399,46 @@ function App() {
                 </div>
               </div>
 
-              {result.previewUrl ? (
+              {previewSrc && !isMobile ? (
                 <iframe
-                  src={result.previewUrl}
-                  className="min-h-0 flex-1 w-full bg-white"
+                  src={previewSrc}
+                  className="min-h-0 flex-1 w-full border-0 bg-white"
                   title="Live project preview"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                 />
+              ) : previewSrc && isMobile ? (
+                <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+                  <p className="text-sm text-neutral-300">Preview is ready</p>
+                  <p className="max-w-xs text-sm leading-relaxed text-neutral-500">
+                    Tap below to view your generated site full screen.
+                  </p>
+                  <button
+                    onClick={() => {
+                      window.location.href = previewSrc.startsWith('/')
+                        ? previewSrc
+                        : previewSrc
+                    }}
+                    className="w-full max-w-xs border border-white px-4 py-3 text-sm text-white hover:bg-neutral-900"
+                  >
+                    View preview
+                  </button>
+                  {externalPreviewUrl && (
+                    <button
+                      onClick={() => window.open(externalPreviewUrl, '_blank')}
+                      className="text-xs text-neutral-500 underline underline-offset-2"
+                    >
+                      Open in browser
+                    </button>
+                  )}
+                </div>
               ) : (
                 <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-                  {import.meta.env.PROD ? (
+                  {result.previewUrl && isLocalPreviewUrl(result.previewUrl) ? (
                     <>
                       <p className="text-sm text-neutral-300">Project generated successfully</p>
                       <p className="mt-2 max-w-sm text-sm leading-relaxed text-neutral-500">
-                        Live previews are disabled on Railway. Run locally with{' '}
-                        <code className="font-mono text-xs text-neutral-400">npm run dev</code> to preview.
+                        Local preview URLs only work on this machine. Deploy to production or open the app on desktop with{' '}
+                        <code className="font-mono text-xs text-neutral-400">npm run dev</code>.
                       </p>
                     </>
                   ) : (
