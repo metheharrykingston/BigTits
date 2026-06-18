@@ -65,7 +65,8 @@ function getPreviewSrc(url?: string): string | null {
   try {
     const parsed = new URL(url)
     if (parsed.hostname === RAILWAY_API_HOST && parsed.pathname.startsWith('/preview/')) {
-      return `/api/preview${parsed.pathname.slice('/preview'.length)}${parsed.search}`
+      const slug = parsed.pathname.slice('/preview'.length).replace(/\/$/, '')
+      return `/api/preview${slug}${parsed.search}`
     }
     return url
   } catch {
