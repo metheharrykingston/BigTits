@@ -68,6 +68,12 @@ textarea {
   overscroll-behavior: contain;
 }
 
+/* Split-pane grid: allow children to shrink inside h-svh layout */
+.grid > * {
+  min-height: 0;
+  min-width: 0;
+}
+
 .scroll-area::-webkit-scrollbar {
   width: 4px;
 }

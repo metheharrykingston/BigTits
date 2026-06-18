@@ -485,7 +485,7 @@ function App() {
     }
   }
 
-  const showComposer = !isLoading && (!result || isAgentResult || hasConversation || messages.length > 0)
+  const showComposer = !isLoading && backendStatus !== 'unreachable'
   const activeSummary = sessions.find((s) => s.session_id === sessionId)
 
   return (
@@ -561,9 +561,9 @@ function App() {
           </div>
         )}
 
-        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] overflow-hidden md:grid-cols-[minmax(280px,360px)_minmax(0,1fr)] md:grid-rows-1">
           {/* Chat column — conversation + composer */}
-          <section className="flex min-h-0 min-h-[38vh] w-full flex-col border-b border-neutral-800 md:max-w-md md:flex-none md:border-b-0 md:border-r">
+          <section className="flex min-h-0 flex-col overflow-hidden border-b border-neutral-800 md:border-b-0 md:border-r">
             <ChatThread
               messages={messages}
               activities={activities}
@@ -620,8 +620,8 @@ function App() {
           </section>
 
           {/* Result column — draft, preview, loading */}
-          <section className="flex min-h-0 min-h-[42vh] flex-1 flex-col">
-            <div className="scroll-area flex min-h-0 flex-1 flex-col">
+          <section className="flex min-h-0 flex-col overflow-hidden">
+            <div className="scroll-area min-h-0 flex-1">
               {!result && !isLoading && !error && messages.length === 0 && (
                 <div className="flex flex-1 flex-col items-center justify-center px-6 animate-fade-in">
                   <h1 className="mb-2 text-center text-xl font-medium tracking-tight text-white md:text-2xl">
@@ -677,11 +677,10 @@ function App() {
               )}
 
               {result && result.success && result.projectPath && !isAgentResult && (
-              <div className="flex min-h-0 flex-1 flex-col animate-fade-in">
+              <div className="flex h-full min-h-0 flex-col animate-fade-in">
                 {hasConversation && (
                   <div className="shrink-0 border-b border-neutral-800 px-4 py-3">
                     <AgentOptions
-                      assistantMessage={result.assistant_message}
                       options={result.options}
                       autoContinueAfterMs={result.auto_continue_after_ms}
                       onSelect={handleSelectOption}
@@ -755,7 +754,7 @@ function App() {
                 ) : previewSrc ? (
                   <iframe
                     src={previewSrc}
-                    className="min-h-0 flex-1 w-full border-0 bg-white"
+                    className="block h-full min-h-[240px] w-full flex-1 border-0 bg-white"
                     title="Live project preview"
                     allow="fullscreen"
                   />

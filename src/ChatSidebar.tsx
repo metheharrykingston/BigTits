@@ -44,7 +44,7 @@ export function ChatSidebar({
 }: ChatSidebarProps) {
   if (collapsed) {
     return (
-      <div className="flex w-11 shrink-0 flex-col items-center border-r border-neutral-800 bg-neutral-950 py-3">
+      <div className="flex h-full max-h-svh w-11 shrink-0 flex-col items-center border-r border-neutral-800 bg-neutral-950 py-3">
         <button
           type="button"
           onClick={onToggle}
@@ -68,7 +68,7 @@ export function ChatSidebar({
   }
 
   return (
-    <aside className="flex w-[260px] shrink-0 flex-col border-r border-neutral-800 bg-neutral-950">
+    <aside className="flex h-full max-h-svh w-[260px] shrink-0 flex-col border-r border-neutral-800 bg-neutral-950">
       <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-2.5">
         <p className="text-xs font-medium uppercase tracking-wider text-neutral-500">Chats</p>
         <div className="flex items-center gap-1">

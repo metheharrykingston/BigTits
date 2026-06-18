@@ -194,7 +194,6 @@ export function CampaignPanel({
         {(result.assistant_message || (result.options && result.options.length > 0)) && (
           <div className="mb-4">
             <AgentOptions
-              assistantMessage={result.assistant_message}
               options={result.options}
               autoContinueAfterMs={result.auto_continue_after_ms}
               onSelect={onSelectOption}
