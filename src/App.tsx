@@ -485,7 +485,8 @@ function App() {
     }
   }
 
-  const showComposer = !isLoading && backendStatus !== 'unreachable'
+  const backendUnreachable = backendStatus === 'unreachable'
+  const showComposer = !isLoading && !backendUnreachable
   const activeSummary = sessions.find((s) => s.session_id === sessionId)
 
   return (
@@ -587,12 +588,12 @@ function App() {
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      disabled={isLoading || backendStatus === 'unreachable'}
+                      disabled={isLoading || backendUnreachable}
                       rows={1}
                     />
                     <button
                       type="submit"
-                      disabled={isLoading || backendStatus === 'unreachable' || !prompt.trim()}
+                      disabled={isLoading || backendUnreachable || !prompt.trim()}
                       className="send-btn flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-black"
                       aria-label="Send"
                     >
