@@ -60,11 +60,18 @@ PORT=8000
 HOST=0.0.0.0
 RELOAD=false
 ENABLE_SHELL_EXECUTOR=false
-XAI_API_KEY=your-xai-key
-XAI_MODEL=grok-3
 ```
 
 Core is healthy at `https://bigtits-core-production.up.railway.app/health`.
+
+Set on **Railway API** (not Core):
+
+```text
+XAI_API_KEY=your-xai-key
+XAI_MODEL=grok-3-mini
+N8N_API_URL=https://your-n8n.example.com
+N8N_WEBHOOK_BASE_URL=https://your-n8n.example.com
+```
 
 ## Frontend on Vercel
 
@@ -82,7 +89,7 @@ the API `PYTHON_CORE_URL` fix is applied.
 |---------|-----|
 | Status shows **Degraded** | API can't reach Core — fix `PYTHON_CORE_URL` on Railway API |
 | Status shows **Offline** | API service down or wrong URL |
-| Generation fails | Core needs `XAI_API_KEY`; API needs volume at `/data` |
+| Generation fails | API needs `XAI_API_KEY` + volume at `/data` |
 
 ## Local development
 
