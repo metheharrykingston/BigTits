@@ -19,10 +19,10 @@ interface CreateResponse {
 }
 
 const EXAMPLE_PROMPTS = [
+  { label: 'Electronic store', prompt: 'Build an electronic store website' },
+  { label: 'Furniture shop', prompt: 'Create a furniture store website' },
   { label: 'Cafe website', prompt: 'Create a website for my cafe' },
-  { label: 'SaaS landing', prompt: 'Build a modern landing page for a SaaS product' },
   { label: 'Portfolio', prompt: 'Make a personal portfolio website' },
-  { label: 'Dashboard', prompt: 'A simple React dashboard' },
 ]
 
 const PIPELINE_STEPS = [
