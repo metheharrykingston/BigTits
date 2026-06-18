@@ -1,3 +1,5 @@
+import { RAILWAY_API_URL } from './config'
+
 export const config = {
   runtime: 'edge',
 }
@@ -15,20 +17,8 @@ const HOP_BY_HOP = new Set([
 ])
 
 export default async function handler(request: Request): Promise<Response> {
-  const base = process.env.RAILWAY_API_URL?.replace(/\/$/, '')
-  if (!base) {
-    return Response.json(
-      {
-        success: false,
-        error: 'Backend not configured',
-        hint: 'Set RAILWAY_API_URL in Vercel to your Railway API public URL.',
-      },
-      { status: 503 },
-    )
-  }
-
   const incoming = new URL(request.url)
-  const target = `${base}${incoming.pathname}${incoming.search}`
+  const target = `${RAILWAY_API_URL}${incoming.pathname}${incoming.search}`
 
   const headers = new Headers()
   for (const [key, value] of request.headers.entries()) {
@@ -57,7 +47,7 @@ export default async function handler(request: Request): Promise<Response> {
       {
         success: false,
         error: 'Could not reach Railway API',
-        hint: 'Verify the API service is deployed and RAILWAY_API_URL is correct.',
+        hint: 'Verify the API service is deployed at bigtits-api-production.up.railway.app',
         details: err instanceof Error ? err.message : String(err),
       },
       { status: 502 },

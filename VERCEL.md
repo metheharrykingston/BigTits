@@ -1,10 +1,51 @@
 # Vercel + Railway deployment
 
-The frontend on Vercel talks to the API on Railway through a serverless proxy.
-You do **not** need `VITE_API_URL` unless you want the browser to call Railway
-directly.
+Your services:
 
-## 1. Deploy Core on Railway
+| Service | URL |
+|---------|-----|
+| API | `https://bigtits-api-production.up.railway.app` |
+| Core | `https://bigtits-core-production.up.railway.app` |
+| Frontend | Vercel |
+
+The Vercel proxy defaults to the API URL above. You do **not** need to set
+`RAILWAY_API_URL` on Vercel unless you change the API domain.
+
+## Fix required on Railway API
+
+The API is currently pointing at `http://localhost:8000` for Core. Update the
+**API service** variables on Railway:
+
+```text
+PYTHON_CORE_URL=https://bigtits-core-production.up.railway.app
+```
+
+Or, if both services are in the same Railway project with private networking:
+
+```text
+PYTHON_CORE_URL=http://${{core.RAILWAY_PRIVATE_DOMAIN}}:8000
+```
+
+Also recommended:
+
+```text
+HOST=0.0.0.0
+GENERATED_DIR=/data/generated
+ENABLE_LIVE_PREVIEWS=false
+ENABLE_EXECUTE_PROXY=false
+```
+
+Attach a volume at `/data` on the API service so generated projects persist.
+
+After saving variables, redeploy the API service. Then:
+
+```bash
+curl https://bigtits-api-production.up.railway.app/ready
+```
+
+Should return `"status":"ready"` with a healthy core.
+
+## Core service variables
 
 Repository: `metheharrykingston/bigtits-core`
 
@@ -17,64 +58,30 @@ XAI_API_KEY=your-xai-key
 XAI_MODEL=grok-3
 ```
 
-- No public domain required
-- Service name should be `core` (used by API private networking)
+Core is healthy at `https://bigtits-core-production.up.railway.app/health`.
 
-## 2. Deploy API on Railway
+## Frontend on Vercel
 
-Repository: `metheharrykingston/bigtits-api`
+Repository: `metheharrykingston/BigTits` (this app)
 
-```text
-HOST=0.0.0.0
-PYTHON_CORE_URL=http://${{core.RAILWAY_PRIVATE_DOMAIN}}:8000
-GENERATED_DIR=/data/generated
-CORS_ORIGINS=https://your-app.vercel.app
-ENABLE_EXECUTE_PROXY=false
-ENABLE_LIVE_PREVIEWS=false
-```
+No env vars required by default — the serverless proxy uses
+`bigtits-api-production.up.railway.app` automatically.
 
-- Generate a **public Railway domain** for this service
-- Attach a volume mounted at `/data`
-- Copy the public URL (e.g. `https://bigtits-api-production.up.railway.app`)
-
-## 3. Deploy frontend on Vercel
-
-Repository: this app (`metheharrykingston/BigTits`)
-
-### Vercel environment variable
-
-| Name | Value | Environments |
-|------|-------|--------------|
-| `RAILWAY_API_URL` | Your Railway API public URL (no trailing slash) | Production, Preview |
-
-Example:
-
-```text
-RAILWAY_API_URL=https://bigtits-api-production.up.railway.app
-```
-
-Leave `VITE_API_URL` unset. The Vercel proxy at `/api/*` forwards requests to
-Railway server-side, so CORS is not an issue.
-
-### Redeploy
-
-After setting `RAILWAY_API_URL`, redeploy the Vercel project. The status pill in
-the app header should turn green when both API and Core are healthy.
+Redeploy Vercel after pushing. The header status should show **Online** once
+the API `PYTHON_CORE_URL` fix is applied.
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
-| "Backend not configured" | Set `RAILWAY_API_URL` on Vercel and redeploy |
-| "Could not reach Railway API" | Check Railway API service logs; confirm the public URL |
-| "Core unreachable" (degraded status) | Check Core service on Railway; verify `PYTHON_CORE_URL` uses `${{core.RAILWAY_PRIVATE_DOMAIN}}` |
-| Generation works locally but not in prod | Railway API volume + Core `XAI_API_KEY` must be set |
+| Status shows **Degraded** | API can't reach Core — fix `PYTHON_CORE_URL` on Railway API |
+| Status shows **Offline** | API service down or wrong URL |
+| Generation fails | Core needs `XAI_API_KEY`; API needs volume at `/data` |
 
 ## Local development
 
 ```bash
-# From monorepo root
-npm run dev
+npm run dev   # from monorepo root
 ```
 
-Vite proxies `/api` to `http://localhost:3001`. No Vercel or Railway env vars needed.
+Vite proxies `/api` to `http://localhost:3001`. No Railway env vars needed.
