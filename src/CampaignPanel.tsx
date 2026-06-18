@@ -166,7 +166,7 @@ export function CampaignPanel({
               : (isPost ? 'Meta post draft' : 'Meta ad campaign draft')}
           </p>
           <p className="text-xs text-neutral-500">
-            {result.module_slug || 'meta-ads-campaign'}
+            {result.module_slug || (isPost ? 'meta-post' : 'meta-ad-campaign')}
             {result.connector_slug ? ` → ${result.connector_slug}` : ''}
             <span className="text-neutral-600"> via n8n</span>
           </p>

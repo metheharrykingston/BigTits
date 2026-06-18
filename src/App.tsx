@@ -1,7 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AgentOptions, type FollowUpOption } from './AgentOptions'
 import { CampaignPanel, type AgentResponse } from './CampaignPanel'
+import { ChatSidebar } from './ChatSidebar'
+import { ChatThread } from './ChatThread'
 import { FileWriterPanel } from './FileWriterPanel'
+import { apiFetch, apiHint, apiUrl, readApiJson } from './lib/api'
+import {
+  createSession,
+  deleteSession,
+  fetchSession,
+  fetchSessions,
+  type ChatMessage,
+  type SessionActivity,
+  type SessionSnapshot,
+  type SessionSummary,
+} from './lib/sessions'
 import './index.css'
 
 interface CreateResponse extends AgentResponse {
@@ -31,8 +44,6 @@ const EXAMPLE_PROMPTS = [
   { label: 'Portfolio', prompt: 'Make a personal portfolio website' },
 ]
 
-const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-
 type BackendStatus = 'checking' | 'ready' | 'degraded' | 'unreachable' | 'unconfigured'
 
 interface StatusResponse {
@@ -60,28 +71,44 @@ function getPreviewSrc(url?: string): string | null {
   return url
 }
 
+function liveActivity(label: string, stage = 'client'): SessionActivity {
+  return {
+    id: `live-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    stage,
+    label,
+    status: 'running',
+    at: new Date().toISOString(),
+  }
+}
+
 async function checkBackendStatus(): Promise<StatusResponse> {
   try {
-    const url = import.meta.env.PROD ? '/api/status' : (API_URL ? `${API_URL}/ready` : '/ready')
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
-    const data = await res.json()
+    const path = import.meta.env.PROD ? '/api/status' : '/ready'
+    const res = await fetch(apiUrl(path), { signal: AbortSignal.timeout(10000) })
+    const data = await readApiJson<StatusResponse & Record<string, unknown>>(res)
 
     if (import.meta.env.PROD) {
-      return data as StatusResponse
+      return {
+        status: (data.status as BackendStatus) || (res.ok ? 'ready' : 'degraded'),
+        message: data.message as string | undefined,
+        hint: data.hint as string | undefined,
+        api: data.api as boolean | undefined,
+        core: data.core as boolean | undefined,
+      }
     }
 
     return {
       status: res.ok ? 'ready' : 'degraded',
       api: true,
       core: res.ok,
-      message: res.ok ? undefined : 'Python Core is not responding',
+      message: res.ok ? undefined : 'Python Core is not responding — is port 8000 up?',
+      hint: apiHint(),
     }
-  } catch {
+  } catch (err) {
     return {
       status: 'unreachable',
-      message: import.meta.env.PROD
-        ? 'Cannot reach backend — set RAILWAY_API_URL on Vercel'
-        : 'Start the backend with npm run dev from the repo root',
+      message: err instanceof Error ? err.message : 'Cannot reach API',
+      hint: apiHint(),
     }
   }
 }
@@ -110,10 +137,18 @@ function App() {
   const [errorHint, setErrorHint] = useState('')
   const [backendStatus, setBackendStatus] = useState<BackendStatus>('checking')
   const [backendMessage, setBackendMessage] = useState('')
+  const [backendHint, setBackendHint] = useState('')
   const [submittedPrompt, setSubmittedPrompt] = useState('')
   const [isMobile, setIsMobile] = useState(false)
   const [flushFiles, setFlushFiles] = useState(false)
   const [sessionId, setSessionId] = useState(() => localStorage.getItem(SESSION_KEY) || '')
+  const [sessionTitle, setSessionTitle] = useState('New chat')
+  const [sessions, setSessions] = useState<SessionSummary[]>([])
+  const [sessionsLoading, setSessionsLoading] = useState(true)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [activities, setActivities] = useState<SessionActivity[]>([])
+  const [liveActivities, setLiveActivities] = useState<SessionActivity[]>([])
   const [isPublishing, setIsPublishing] = useState(false)
   const pendingResultRef = useRef<CreateResponse | null>(null)
   const loadStartedAtRef = useRef(0)
@@ -129,14 +164,71 @@ function App() {
     result?.assistant_message || (result?.options && result.options.length > 0),
   )
 
+  const refreshSessions = useCallback(async () => {
+    try {
+      const list = await fetchSessions()
+      setSessions(list)
+    } catch {
+      // keep existing list on transient errors
+    } finally {
+      setSessionsLoading(false)
+    }
+  }, [])
+
+  const applySnapshot = useCallback((snapshot: SessionSnapshot) => {
+    setSessionId(snapshot.session_id)
+    localStorage.setItem(SESSION_KEY, snapshot.session_id)
+    setSessionTitle(snapshot.title)
+    setMessages(snapshot.messages || [])
+    setActivities(snapshot.activities || [])
+    setLiveActivities([])
+
+    const restore = snapshot.restore as CreateResponse | null | undefined
+    if (restore) {
+      setResult({
+        ...restore,
+        success: restore.success ?? true,
+        session_id: snapshot.session_id,
+        kind: restore.kind || snapshot.kind,
+      })
+    } else {
+      setResult(null)
+    }
+    setError('')
+    setErrorHint('')
+  }, [])
+
+  const loadSessionById = useCallback(async (id: string) => {
+    const snapshot = await fetchSession(id)
+    if (snapshot) {
+      applySnapshot(snapshot)
+    }
+  }, [applySnapshot])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const boot = async () => {
+      await refreshSessions()
+      const saved = localStorage.getItem(SESSION_KEY)
+      if (!cancelled && saved) {
+        await loadSessionById(saved)
+      }
+    }
+
+    boot()
+    return () => { cancelled = true }
+  }, [refreshSessions, loadSessionById])
+
   useEffect(() => {
     let cancelled = false
 
     const poll = async () => {
-      const result = await checkBackendStatus()
+      const statusResult = await checkBackendStatus()
       if (cancelled) return
-      setBackendStatus(result.status)
-      setBackendMessage(result.message || result.hint || '')
+      setBackendStatus(statusResult.status)
+      setBackendMessage(statusResult.message || '')
+      setBackendHint(statusResult.hint || (statusResult.status !== 'ready' ? apiHint() : ''))
     }
 
     poll()
@@ -156,11 +248,55 @@ function App() {
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px), (pointer: coarse)')
-    const update = () => setIsMobile(mq.matches)
+    const update = () => {
+      setIsMobile(mq.matches)
+      if (mq.matches) setSidebarCollapsed(true)
+    }
     update()
     mq.addEventListener('change', update)
     return () => mq.removeEventListener('change', update)
   }, [])
+
+  const startNewChat = async () => {
+    try {
+      const id = await createSession()
+      setSessionId(id)
+      localStorage.setItem(SESSION_KEY, id)
+      setSessionTitle('New chat')
+      setMessages([])
+      setActivities([])
+      setLiveActivities([])
+      setResult(null)
+      setError('')
+      setErrorHint('')
+      setPrompt('')
+      setSubmittedPrompt('')
+      setFlushFiles(false)
+      await refreshSessions()
+    } catch {
+      setError('Could not create a new chat session')
+    }
+  }
+
+  const handleSelectSession = async (id: string) => {
+    if (id === sessionId && messages.length > 0) return
+    setIsLoading(false)
+    await loadSessionById(id)
+    if (isMobile) setSidebarCollapsed(true)
+  }
+
+  const handleDeleteSession = async (id: string) => {
+    await deleteSession(id)
+    await refreshSessions()
+    if (id === sessionId) {
+      await startNewChat()
+    }
+  }
+
+  const syncSessionState = async (id: string) => {
+    await refreshSessions()
+    if (id) await loadSessionById(id)
+  }
 
   const runDemo = async (finalPrompt: string, opts?: { keepResult?: boolean }) => {
     if (!finalPrompt.trim() || isLoading) return
@@ -175,11 +311,16 @@ function App() {
     }
     setSubmittedPrompt(finalPrompt.trim())
     loadStartedAtRef.current = Date.now()
+    setLiveActivities([
+      liveActivity('Sending request to API'),
+      liveActivity('Routing intent & skills'),
+    ])
 
     let generationSucceeded = false
+    let activeSid = sessionId
 
     try {
-      const res = await fetch(`${API_URL}/api/create`, {
+      const res = await apiFetch('/api/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -188,20 +329,30 @@ function App() {
         }),
       })
 
-      const data = await res.json() as CreateResponse & { hint?: string }
+      const data = await readApiJson<CreateResponse & { hint?: string; details?: string }>(res)
 
       if (!res.ok || !data.success) {
+        const coreDown = /fetch failed|ECONNREFUSED|unreachable|not responding/i.test(
+          String(data.error || data.details || ''),
+        )
         setError(data.error || data.intent?.message || 'Generation failed')
         setErrorHint(
           data.hint ||
-            (res.status === 503
-              ? 'Set RAILWAY_API_URL in Vercel to your Railway API URL, then redeploy.'
-              : 'Check that both Railway services (API + Core) are running.'),
+            (coreDown
+              ? 'Python Core is not running. From repo root run: npm run dev'
+              : res.status === 503
+                ? 'Set RAILWAY_API_URL in Vercel to your Railway API URL, then redeploy.'
+                : 'Check that API (:3001) and Core (:8000) are both running.'),
         )
+        if (data.session_id) {
+          activeSid = data.session_id
+          await syncSessionState(data.session_id)
+        }
         return
       }
 
       if (data.session_id) {
+        activeSid = data.session_id
         setSessionId(data.session_id)
         localStorage.setItem(SESSION_KEY, data.session_id)
       }
@@ -223,6 +374,8 @@ function App() {
         setIsLoading(false)
         setSubmittedPrompt(finalPrompt.trim())
         setPrompt('')
+        setLiveActivities([])
+        await syncSessionState(activeSid)
         return
       }
 
@@ -236,22 +389,27 @@ function App() {
         }))
         setIsLoading(false)
         setPrompt('')
+        setLiveActivities([])
+        await syncSessionState(activeSid)
         return
       }
 
       setFlushFiles(true)
       setPrompt('')
-    } catch {
+    } catch (err) {
       setError('Could not connect to the generator')
       setErrorHint(
-        import.meta.env.PROD
-          ? 'Set RAILWAY_API_URL in your Vercel project settings, then redeploy.'
-          : 'Run npm run dev from the repo root to start Core + API + frontend together.',
+        err instanceof Error
+          ? err.message
+          : import.meta.env.PROD
+            ? 'Set RAILWAY_API_URL in Vercel, redeploy, and confirm Railway API is healthy.'
+            : 'Run npm run dev from the repo root (starts Core :8000, API :3001, app :5173).',
       )
     } finally {
       if (!generationSucceeded) {
         setIsLoading(false)
         setFlushFiles(false)
+        setLiveActivities([])
       }
     }
   }
@@ -261,12 +419,16 @@ function App() {
     const elapsed = Date.now() - loadStartedAtRef.current
     const remaining = Math.max(0, minDuration - elapsed)
 
-    window.setTimeout(() => {
+    window.setTimeout(async () => {
       const ready = pendingResultRef.current
       if (ready) setResult(ready)
       pendingResultRef.current = null
       setIsLoading(false)
       setFlushFiles(false)
+      setLiveActivities([])
+      if (ready?.session_id) {
+        await syncSessionState(ready.session_id)
+      }
     }, remaining)
   }
 
@@ -296,9 +458,10 @@ function App() {
     setIsPublishing(true)
     setError('')
     setErrorHint('')
+    setLiveActivities([liveActivity('Publishing via n8n connector', 'publish')])
 
     try {
-      const res = await fetch(`${API_URL}/api/agent`, {
+      const res = await apiFetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -306,294 +469,337 @@ function App() {
           session_id: sessionId,
         }),
       })
-      const data = await res.json() as CreateResponse
+      const data = await readApiJson<CreateResponse>(res)
       if (!res.ok || !data.success) {
         setError(data.error || data.message || 'Publish failed')
+        await syncSessionState(sessionId)
         return
       }
       setResult({ ...result, ...data, kind: 'agent', campaign: result?.campaign || data.campaign })
+      await syncSessionState(sessionId)
     } catch {
       setError('Could not connect to publish endpoint')
     } finally {
       setIsPublishing(false)
+      setLiveActivities([])
     }
   }
 
-  const reset = () => {
-    setResult(null)
-    setError('')
-    setErrorHint('')
-    setPrompt('')
-    setSubmittedPrompt('')
-    setFlushFiles(false)
-    setSessionId('')
-    localStorage.removeItem(SESSION_KEY)
-  }
-
-  const showComposer = !isLoading && (!result || isAgentResult || hasConversation)
+  const showComposer = !isLoading && (!result || isAgentResult || hasConversation || messages.length > 0)
+  const activeSummary = sessions.find((s) => s.session_id === sessionId)
 
   return (
-    <div className="flex h-svh flex-col overflow-hidden bg-black text-white">
-      {/* Top bar */}
-      <header className="flex h-11 shrink-0 items-center justify-between border-b border-neutral-800 px-4">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-6 w-6 items-center justify-center border border-neutral-700">
-            <span className="text-[10px] font-bold tracking-tighter">BT</span>
+    <div className="flex h-svh overflow-hidden bg-black text-white">
+      <ChatSidebar
+        sessions={sessions}
+        activeSessionId={sessionId}
+        loading={sessionsLoading}
+        collapsed={sidebarCollapsed}
+        onSelect={handleSelectSession}
+        onNewChat={startNewChat}
+        onDelete={handleDeleteSession}
+        onToggle={() => setSidebarCollapsed((v) => !v)}
+      />
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-11 shrink-0 items-center justify-between border-b border-neutral-800 px-4">
+          <div className="flex min-w-0 items-center gap-2.5">
+            {sidebarCollapsed && (
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed(false)}
+                className="flex h-6 w-6 items-center justify-center border border-neutral-800 text-neutral-400 hover:text-white md:hidden"
+                aria-label="Open chats"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+            )}
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center border border-neutral-700">
+              <span className="text-[10px] font-bold tracking-tighter">BT</span>
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium tracking-tight text-neutral-200">
+                {sessionTitle || activeSummary?.title || 'New chat'}
+              </p>
+              {sessionId && (
+                <p className="truncate font-mono text-[10px] text-neutral-600">
+                  {activeSummary?.status === 'working' ? 'Working…' : activeSummary?.status || 'idle'}
+                  {' · '}
+                  {sessionId.slice(0, 8)}
+                </p>
+              )}
+            </div>
           </div>
-          <span className="text-sm font-medium tracking-tight text-neutral-200">BigTits</span>
-        </div>
 
-        <div
-          className="flex items-center gap-2 text-[11px] text-neutral-500"
-          title={backendMessage || STATUS_LABELS[backendStatus]}
-        >
-          <span
-            className={`h-1.5 w-1.5 rounded-full bg-white ${
-              backendStatus === 'ready' ? 'opacity-100' : 'opacity-30 animate-pulse-dot'
-            }`}
-          />
-          {STATUS_LABELS[backendStatus]}
-        </div>
-      </header>
-
-      {/* Setup banner */}
-      {backendStatus === 'unconfigured' && !result && (
-        <div className="shrink-0 border-b border-neutral-800 bg-neutral-950 px-4 py-2 text-center text-xs text-neutral-400">
-          Set <code className="font-mono text-neutral-300">RAILWAY_API_URL</code> in Vercel, then redeploy.
-        </div>
-      )}
-
-      {/* Main stage */}
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="scroll-area flex min-h-0 flex-1 flex-col">
-          {/* Idle */}
-          {!result && !isLoading && !error && (
-            <div className="flex flex-1 flex-col items-center justify-center px-6 animate-fade-in">
-              <h1 className="mb-2 text-center text-2xl font-medium tracking-tight text-white md:text-[28px]">
-                What should we build?
-              </h1>
-              <p className="max-w-md text-center text-sm leading-relaxed text-neutral-500">
-                Build websites, create Meta ad campaigns with 5 creatives, or say &ldquo;publish this campaign&rdquo; to push live via connectors.
-              </p>
-            </div>
-          )}
-
-          {/* File writer — runs while API generates */}
-          {isLoading && (
-            <div className="flex min-h-0 flex-1 flex-col animate-fade-in">
-              <p className="shrink-0 px-4 pt-4 text-center text-xs text-neutral-600">
-                {submittedPrompt}
-              </p>
-              <FileWriterPanel
-                prompt={submittedPrompt}
-                active={isLoading}
-                flush={flushFiles}
-                onFinish={handleFileWriterFinish}
-              />
-            </div>
-          )}
-
-          {/* Error */}
-          {error && !isLoading && (
-            <div className="flex flex-1 flex-col items-center justify-center px-6 animate-fade-in">
-              <div className="w-full max-w-xl border border-neutral-800 p-5">
-                <p className="text-sm text-white">{error}</p>
-                {errorHint && (
-                  <p className="mt-2 text-sm leading-relaxed text-neutral-500">{errorHint}</p>
-                )}
-                <button
-                  onClick={() => { setError(''); setErrorHint('') }}
-                  className="mt-4 text-xs text-neutral-400 underline underline-offset-2 hover:text-white"
-                >
-                  Try again
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Agent result — Meta campaign draft or publish */}
-          {result && result.success && isAgentResult && (
-            <CampaignPanel
-              result={result}
-              sessionId={sessionId}
-              onPublish={publishCampaign}
-              onReset={reset}
-              onSelectOption={handleSelectOption}
-              isPublishing={isPublishing}
-              isLoading={isLoading}
+          <div
+            className="flex shrink-0 items-center gap-2 text-[11px] text-neutral-500"
+            title={backendMessage || STATUS_LABELS[backendStatus]}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full bg-white ${
+                backendStatus === 'ready' ? 'opacity-100' : 'opacity-30 animate-pulse-dot'
+              }`}
             />
-          )}
+            {STATUS_LABELS[backendStatus]}
+          </div>
+        </header>
 
-          {/* Website result */}
-          {result && result.success && result.projectPath && !isAgentResult && (
-            <div className="flex min-h-0 flex-1 flex-col animate-fade-in">
-              {hasConversation && (
-                <div className="shrink-0 border-b border-neutral-800 px-4 py-3">
-                  <AgentOptions
-                    assistantMessage={result.assistant_message}
-                    options={result.options}
-                    autoContinueAfterMs={result.auto_continue_after_ms}
-                    onSelect={handleSelectOption}
-                    disabled={isLoading}
+        {(backendStatus === 'unreachable' || backendStatus === 'degraded') && (
+          <div className="shrink-0 border-b border-amber-900/50 bg-amber-950/30 px-4 py-2 text-center text-xs text-amber-200/90">
+            <p>{backendMessage || 'Backend unavailable'}</p>
+            {backendHint && (
+              <p className="mt-1 text-[11px] text-amber-200/60">{backendHint}</p>
+            )}
+          </div>
+        )}
+
+        {backendStatus === 'unconfigured' && !result && (
+          <div className="shrink-0 border-b border-neutral-800 bg-neutral-950 px-4 py-2 text-center text-xs text-neutral-400">
+            Set <code className="font-mono text-neutral-300">RAILWAY_API_URL</code> in Vercel, then redeploy.
+          </div>
+        )}
+
+        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+          {/* Chat column — conversation + composer */}
+          <section className="flex min-h-0 min-h-[38vh] w-full flex-col border-b border-neutral-800 md:max-w-md md:flex-none md:border-b-0 md:border-r">
+            <ChatThread
+              messages={messages}
+              activities={activities}
+              liveActivities={liveActivities}
+              isWorking={isLoading || isPublishing}
+              assistantMessage={result?.assistant_message}
+            />
+
+            {showComposer && (
+              <div className="shrink-0 border-t border-neutral-800 px-3 py-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+                <form onSubmit={handleSubmit}>
+                  <div className="input-shell flex items-end gap-2 rounded-2xl border border-neutral-800 bg-neutral-950 px-3 py-2 transition-colors">
+                    <textarea
+                      ref={textareaRef}
+                      className="max-h-[120px] min-h-[24px] flex-1 resize-none bg-transparent py-1 text-sm leading-relaxed text-white placeholder:text-neutral-600 focus:outline-none"
+                      placeholder={
+                        hasConversation || messages.length > 0
+                          ? 'Refine this draft or describe changes…'
+                          : 'Build a site, make a meta ad, or write a post…'
+                      }
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      disabled={isLoading || backendStatus === 'unreachable'}
+                      rows={1}
+                    />
+                    <button
+                      type="submit"
+                      disabled={isLoading || backendStatus === 'unreachable' || !prompt.trim()}
+                      className="send-btn flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-black"
+                      aria-label="Send"
+                    >
+                      <ArrowUpIcon />
+                    </button>
+                  </div>
+
+                  {!isLoading && !error && messages.length === 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {EXAMPLE_PROMPTS.map((ex) => (
+                        <button
+                          key={ex.label}
+                          type="button"
+                          onClick={() => selectExample(ex.prompt)}
+                          className="rounded-full border border-neutral-800 px-2 py-0.5 text-[10px] text-neutral-500 transition hover:border-neutral-600 hover:text-neutral-300"
+                        >
+                          {ex.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </form>
+              </div>
+            )}
+          </section>
+
+          {/* Result column — draft, preview, loading */}
+          <section className="flex min-h-0 min-h-[42vh] flex-1 flex-col">
+            <div className="scroll-area flex min-h-0 flex-1 flex-col">
+              {!result && !isLoading && !error && messages.length === 0 && (
+                <div className="flex flex-1 flex-col items-center justify-center px-6 animate-fade-in">
+                  <h1 className="mb-2 text-center text-xl font-medium tracking-tight text-white md:text-2xl">
+                    What should we build?
+                  </h1>
+                  <p className="max-w-sm text-center text-sm leading-relaxed text-neutral-500">
+                    Output shows here — website preview, Meta ad draft, or publish status. Chats save in the sidebar.
+                  </p>
+                </div>
+              )}
+
+              {isLoading && (
+                <div className="flex min-h-0 flex-1 flex-col animate-fade-in">
+                  <p className="shrink-0 border-b border-neutral-800 px-4 py-2 text-xs text-neutral-600">
+                    {submittedPrompt}
+                  </p>
+                  <FileWriterPanel
+                    prompt={submittedPrompt}
+                    active={isLoading}
+                    flush={flushFiles}
+                    onFinish={handleFileWriterFinish}
                   />
                 </div>
               )}
 
-              <div className="flex shrink-0 items-center justify-between border-b border-neutral-800 px-4 py-2.5">
-                <div>
-                  <p className="text-sm text-white">Project ready</p>
-                  <p className="text-xs text-neutral-500">Generated and saved to disk</p>
+              {error && !isLoading && (
+                <div className="flex flex-1 flex-col items-center justify-center px-6 animate-fade-in">
+                  <div className="w-full max-w-xl border border-neutral-800 p-5">
+                    <p className="text-sm text-white">{error}</p>
+                    {errorHint && (
+                      <p className="mt-2 text-sm leading-relaxed text-neutral-500">{errorHint}</p>
+                    )}
+                    <button
+                      onClick={() => { setError(''); setErrorHint('') }}
+                      className="mt-4 text-xs text-neutral-400 underline underline-offset-2 hover:text-white"
+                    >
+                      Try again
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {previewSrc && (
-                    <>
-                      <button
-                        onClick={() => {
-                          const href = previewSrc.startsWith('/')
-                            ? `${window.location.origin}${previewSrc}`
-                            : previewSrc
-                          window.open(href, '_blank')
-                        }}
-                        className="flex items-center gap-1.5 border border-neutral-700 px-2.5 py-1 text-xs text-neutral-300 hover:border-neutral-500 hover:text-white"
-                      >
-                        <ExternalLinkIcon />
-                        Open
-                      </button>
-                      {!import.meta.env.PROD && (
+              )}
+
+              {result && result.success && isAgentResult && (
+                <CampaignPanel
+                  result={result}
+                  sessionId={sessionId}
+                  onPublish={publishCampaign}
+                  onReset={startNewChat}
+                  onSelectOption={handleSelectOption}
+                  isPublishing={isPublishing}
+                  isLoading={isLoading}
+                />
+              )}
+
+              {result && result.success && result.projectPath && !isAgentResult && (
+              <div className="flex min-h-0 flex-1 flex-col animate-fade-in">
+                {hasConversation && (
+                  <div className="shrink-0 border-b border-neutral-800 px-4 py-3">
+                    <AgentOptions
+                      assistantMessage={result.assistant_message}
+                      options={result.options}
+                      autoContinueAfterMs={result.auto_continue_after_ms}
+                      onSelect={handleSelectOption}
+                      disabled={isLoading}
+                    />
+                  </div>
+                )}
+
+                <div className="flex shrink-0 items-center justify-between border-b border-neutral-800 px-4 py-2.5">
+                  <div>
+                    <p className="text-sm text-white">Project ready</p>
+                    <p className="text-xs text-neutral-500">Saved in this chat session — resume anytime from sidebar</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {previewSrc && (
+                      <>
+                        <button
+                          onClick={() => {
+                            const href = previewSrc.startsWith('/')
+                              ? `${window.location.origin}${previewSrc}`
+                              : previewSrc
+                            window.open(href, '_blank')
+                          }}
+                          className="flex items-center gap-1.5 border border-neutral-700 px-2.5 py-1 text-xs text-neutral-300 hover:border-neutral-500 hover:text-white"
+                        >
+                          <ExternalLinkIcon />
+                          Open
+                        </button>
+                        {!import.meta.env.PROD && (
+                          <button
+                            onClick={async () => {
+                              if (!result.projectPath) return
+                              await apiFetch('/api/preview/stop', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ projectPath: result.projectPath }),
+                              })
+                              setResult({ ...result, previewUrl: undefined })
+                            }}
+                            className="border border-neutral-800 px-2.5 py-1 text-xs text-neutral-500 hover:border-neutral-600 hover:text-neutral-300"
+                          >
+                            Stop
+                          </button>
+                        )}
+                      </>
+                    )}
+                    <button
+                      onClick={startNewChat}
+                      className="border border-neutral-700 px-2.5 py-1 text-xs text-neutral-300 hover:border-neutral-500 hover:text-white"
+                    >
+                      New chat
+                    </button>
+                  </div>
+                </div>
+
+                {previewSrc && isMobile ? (
+                  <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+                    <p className="text-sm text-neutral-300">Preview is ready</p>
+                    <p className="max-w-xs text-sm leading-relaxed text-neutral-500">
+                      Tap below to view your generated site full screen.
+                    </p>
+                    <a
+                      href={previewSrc}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full max-w-xs border border-white px-4 py-3 text-sm text-white hover:bg-neutral-900"
+                    >
+                      View preview
+                    </a>
+                  </div>
+                ) : previewSrc ? (
+                  <iframe
+                    src={previewSrc}
+                    className="min-h-0 flex-1 w-full border-0 bg-white"
+                    title="Live project preview"
+                    allow="fullscreen"
+                  />
+                ) : (
+                  <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+                    {result.previewUrl && isLocalPreviewUrl(result.previewUrl) ? (
+                      <>
+                        <p className="text-sm text-neutral-300">Project generated successfully</p>
+                        <p className="mt-2 max-w-sm text-sm leading-relaxed text-neutral-500">
+                          Local preview URLs only work on this machine. Deploy to production or open the app on desktop with{' '}
+                          <code className="font-mono text-xs text-neutral-400">npm run dev</code>.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="mb-4 text-sm text-neutral-400">Preview not running</p>
                         <button
                           onClick={async () => {
                             if (!result.projectPath) return
-                            await fetch(`${API_URL}/api/preview/stop`, {
+                            const res = await apiFetch('/api/preview/start', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ projectPath: result.projectPath }),
                             })
-                            setResult({ ...result, previewUrl: undefined })
+                            const data = await readApiJson<{ success?: boolean; previewUrl?: string; port?: number; error?: string }>(res)
+                            if (data.success && data.previewUrl) {
+                              setResult({ ...result, previewUrl: data.previewUrl, previewPort: data.port })
+                            } else {
+                              alert(data.error || 'Could not start preview.')
+                            }
                           }}
-                          className="border border-neutral-800 px-2.5 py-1 text-xs text-neutral-500 hover:border-neutral-600 hover:text-neutral-300"
+                          className="border border-neutral-600 px-4 py-2 text-sm text-white hover:bg-neutral-900"
                         >
-                          Stop
+                          Launch preview
                         </button>
-                      )}
-                    </>
-                  )}
-                  <button
-                    onClick={reset}
-                    className="border border-neutral-700 px-2.5 py-1 text-xs text-neutral-300 hover:border-neutral-500 hover:text-white"
-                  >
-                    New
-                  </button>
-                </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
-
-              {previewSrc && isMobile ? (
-                <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-                  <p className="text-sm text-neutral-300">Preview is ready</p>
-                  <p className="max-w-xs text-sm leading-relaxed text-neutral-500">
-                    Tap below to view your generated site full screen.
-                  </p>
-                  <a
-                    href={previewSrc}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full max-w-xs border border-white px-4 py-3 text-sm text-white hover:bg-neutral-900"
-                  >
-                    View preview
-                  </a>
-                </div>
-              ) : previewSrc ? (
-                <iframe
-                  src={previewSrc}
-                  className="min-h-0 flex-1 w-full border-0 bg-white"
-                  title="Live project preview"
-                  allow="fullscreen"
-                />
-              ) : (
-                <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-                  {result.previewUrl && isLocalPreviewUrl(result.previewUrl) ? (
-                    <>
-                      <p className="text-sm text-neutral-300">Project generated successfully</p>
-                      <p className="mt-2 max-w-sm text-sm leading-relaxed text-neutral-500">
-                        Local preview URLs only work on this machine. Deploy to production or open the app on desktop with{' '}
-                        <code className="font-mono text-xs text-neutral-400">npm run dev</code>.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="mb-4 text-sm text-neutral-400">Preview not running</p>
-                      <button
-                        onClick={async () => {
-                          if (!result.projectPath) return
-                          const res = await fetch(`${API_URL}/api/preview/start`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ projectPath: result.projectPath }),
-                          })
-                          const data = await res.json()
-                          if (data.success && data.previewUrl) {
-                            setResult({ ...result, previewUrl: data.previewUrl, previewPort: data.port })
-                          } else {
-                            alert(data.error || 'Could not start preview.')
-                          }
-                        }}
-                        className="border border-neutral-600 px-4 py-2 text-sm text-white hover:bg-neutral-900"
-                      >
-                        Launch preview
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
+            )}
             </div>
-          )}
+          </section>
         </div>
-
-        {/* Composer — pinned bottom */}
-        {showComposer && (
-          <div className="shrink-0 border-t border-neutral-800 px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))]">
-            <form onSubmit={handleSubmit} className="mx-auto w-full max-w-2xl">
-              <div className="input-shell flex items-end gap-2 rounded-2xl border border-neutral-800 bg-neutral-950 px-3 py-2 transition-colors">
-                <textarea
-                  ref={textareaRef}
-                  className="max-h-[120px] min-h-[24px] flex-1 resize-none bg-transparent py-1 text-sm leading-relaxed text-white placeholder:text-neutral-600 focus:outline-none"
-                  placeholder={
-                    hasConversation
-                      ? 'Refine copy, pick an option above, or describe changes…'
-                      : 'Build a site, make a meta ad, or publish a campaign...'
-                  }
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={isLoading}
-                  rows={1}
-                />
-                <button
-                  type="submit"
-                  disabled={isLoading || !prompt.trim()}
-                  className="send-btn flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-black"
-                  aria-label="Generate"
-                >
-                  <ArrowUpIcon />
-                </button>
-              </div>
-
-              {!isLoading && !error && (
-                <div className="mt-2.5 flex flex-wrap justify-center gap-1.5">
-                  {EXAMPLE_PROMPTS.map((ex) => (
-                    <button
-                      key={ex.label}
-                      type="button"
-                      onClick={() => selectExample(ex.prompt)}
-                      className="rounded-full border border-neutral-800 px-2.5 py-1 text-[11px] text-neutral-500 transition hover:border-neutral-600 hover:text-neutral-300"
-                    >
-                      {ex.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </form>
-          </div>
-        )}
       </div>
     </div>
   )
