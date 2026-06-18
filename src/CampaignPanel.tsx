@@ -22,6 +22,23 @@ interface TargetAudience {
   estimated_reach?: string
 }
 
+interface MetaPost {
+  post_name?: string
+  message?: string
+  link?: string
+  hashtags?: string[]
+  post_type?: string
+  image_concept?: string
+}
+
+interface PostDraft {
+  page_name?: string
+  posts?: MetaPost[]
+  summary?: string
+  recommendations?: string[]
+  api_payload?: Record<string, unknown>
+}
+
 interface Campaign {
   campaign_name?: string
   campaign_objective?: string
@@ -68,6 +85,10 @@ export interface AgentResponse {
   module_slug?: string
   connector_slug?: string
   campaign?: Campaign
+  post?: PostDraft
+  draft_type?: string
+  post_count?: number
+  page_name?: string
   ad_count?: number
   message?: string
   assistant_message?: string
@@ -115,11 +136,13 @@ export function CampaignPanel({
   isLoading,
 }: CampaignPanelProps) {
   const [expandedAd, setExpandedAd] = useState<number | null>(0)
+  const isPost = result.draft_type === 'post' || Boolean(result.post)
   const campaign = result.campaign
+  const postDraft = result.post
   const isPublishResult = result.route_type === 'publish'
   const audience = campaign?.ad_set?.target_audience
 
-  if (!campaign && !isPublishResult) {
+  if (!campaign && !postDraft && !isPublishResult) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
         <p className="text-sm text-neutral-400">{result.error || result.message || 'No campaign data'}</p>
@@ -139,8 +162,8 @@ export function CampaignPanel({
         <div>
           <p className="text-sm text-white">
             {isPublishResult
-              ? (result.publish?.success ? 'Campaign published' : 'Publish result')
-              : 'Meta campaign draft'}
+              ? (result.publish?.success ? (isPost ? 'Post published' : 'Campaign published') : 'Publish result')
+              : (isPost ? 'Meta post draft' : 'Meta ad campaign draft')}
           </p>
           <p className="text-xs text-neutral-500">
             {result.module_slug || 'meta-ads-campaign'}
@@ -155,7 +178,7 @@ export function CampaignPanel({
               disabled={isPublishing}
               className="border border-white px-2.5 py-1 text-xs text-white hover:bg-neutral-900 disabled:opacity-40"
             >
-              {isPublishing ? 'Publishing…' : 'Publish campaign'}
+              {isPublishing ? 'Publishing…' : (isPost ? 'Publish post' : 'Publish campaign')}
             </button>
           )}
           <button
@@ -213,6 +236,29 @@ export function CampaignPanel({
               </div>
             )}
           </div>
+        )}
+
+        {postDraft && (
+          <>
+            <div className="mb-4 border border-neutral-800 p-4">
+              <h2 className="text-base font-medium text-white">{postDraft.page_name}</h2>
+              {postDraft.summary && (
+                <p className="mt-2 text-sm text-neutral-400">{postDraft.summary}</p>
+              )}
+            </div>
+            <div className="mb-4 space-y-2">
+              <h3 className="text-sm font-medium text-white">
+                Post options ({postDraft.posts?.length ?? 0})
+              </h3>
+              {postDraft.posts?.map((p, index) => (
+                <div key={p.post_name || index} className="border border-neutral-800 p-3 text-xs text-neutral-400">
+                  <p className="text-sm text-neutral-200">{p.post_name || `Post ${index + 1}`}</p>
+                  {p.message && <p className="mt-2 whitespace-pre-wrap">{p.message}</p>}
+                  {p.post_type && <p className="mt-1 text-neutral-600">Type: {p.post_type}</p>}
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {campaign && (

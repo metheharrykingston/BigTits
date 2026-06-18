@@ -24,6 +24,7 @@ const SESSION_KEY = 'bigtits-agent-session'
 
 const EXAMPLE_PROMPTS = [
   { label: 'Meta ad campaign', prompt: 'Make a meta ad campaign for my coffee shop targeting local customers' },
+  { label: 'Facebook post', prompt: 'Write a facebook post announcing our summer menu for my cafe' },
   { label: 'Electronic store', prompt: 'Build an electronic store website' },
   { label: 'Furniture shop', prompt: 'Create a furniture store website' },
   { label: 'Cafe website', prompt: 'Create a website for my cafe' },
@@ -118,7 +119,11 @@ function App() {
   const loadStartedAtRef = useRef(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const isAgentResult = result?.kind === 'agent' || result?.route_type === 'create' || result?.route_type === 'publish'
+  const isAgentResult =
+    result?.kind === 'agent' ||
+    result?.route_type === 'create' ||
+    result?.route_type === 'publish' ||
+    Boolean(result?.post)
   const previewSrc = isAgentResult ? null : getPreviewSrc(result?.previewUrl)
   const hasConversation = Boolean(
     result?.assistant_message || (result?.options && result.options.length > 0),
@@ -212,6 +217,8 @@ function App() {
           ...data,
           kind: 'agent',
           campaign: data.campaign || prev?.campaign,
+          post: data.post || prev?.post,
+          draft_type: data.draft_type || prev?.draft_type,
         }))
         setIsLoading(false)
         setSubmittedPrompt(finalPrompt.trim())
@@ -295,7 +302,7 @@ function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: 'publish this campaign',
+          prompt: result?.draft_type === 'post' || result?.post ? 'publish this post' : 'publish this campaign',
           session_id: sessionId,
         }),
       })
