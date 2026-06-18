@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AgentOptions, type FollowUpOption } from './AgentOptions'
 
 interface AdCreative {
   ad_name?: string
@@ -69,6 +70,9 @@ export interface AgentResponse {
   campaign?: Campaign
   ad_count?: number
   message?: string
+  assistant_message?: string
+  options?: FollowUpOption[]
+  auto_continue_after_ms?: number
   next_steps?: string[]
   publish?: PublishResult
   campaign_name?: string
@@ -80,7 +84,9 @@ interface CampaignPanelProps {
   sessionId: string
   onPublish: () => void
   onReset: () => void
+  onSelectOption: (option: FollowUpOption) => void
   isPublishing: boolean
+  isLoading: boolean
 }
 
 function ChevronIcon({ open }: { open: boolean }) {
@@ -104,7 +110,9 @@ export function CampaignPanel({
   sessionId,
   onPublish,
   onReset,
+  onSelectOption,
   isPublishing,
+  isLoading,
 }: CampaignPanelProps) {
   const [expandedAd, setExpandedAd] = useState<number | null>(0)
   const campaign = result.campaign
@@ -160,6 +168,18 @@ export function CampaignPanel({
       </div>
 
       <div className="scroll-area min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        {(result.assistant_message || (result.options && result.options.length > 0)) && (
+          <div className="mb-4">
+            <AgentOptions
+              assistantMessage={result.assistant_message}
+              options={result.options}
+              autoContinueAfterMs={result.auto_continue_after_ms}
+              onSelect={onSelectOption}
+              disabled={isLoading || isPublishing}
+            />
+          </div>
+        )}
+
         {isPublishResult && result.publish && (
           <div className="mb-4 border border-neutral-800 p-4">
             <p className={`text-sm ${result.publish.success ? 'text-emerald-400' : 'text-amber-400'}`}>
@@ -296,12 +316,6 @@ export function CampaignPanel({
               </div>
             )}
           </>
-        )}
-
-        {result.next_steps && result.next_steps.length > 0 && !isPublishResult && (
-          <p className="mt-4 text-center text-xs text-neutral-600">
-            {result.next_steps[0]}
-          </p>
         )}
 
         <p className="mt-4 text-center font-mono text-[10px] text-neutral-700">

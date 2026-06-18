@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { AgentOptions, type FollowUpOption } from './AgentOptions'
 import { CampaignPanel, type AgentResponse } from './CampaignPanel'
 import { FileWriterPanel } from './FileWriterPanel'
 import './index.css'
@@ -16,6 +17,7 @@ interface CreateResponse extends AgentResponse {
   previewUrl?: string
   previewPort?: number
   nextSteps?: string[]
+  variables?: Record<string, string>
 }
 
 const SESSION_KEY = 'bigtits-agent-session'
@@ -118,6 +120,9 @@ function App() {
 
   const isAgentResult = result?.kind === 'agent' || result?.route_type === 'create' || result?.route_type === 'publish'
   const previewSrc = isAgentResult ? null : getPreviewSrc(result?.previewUrl)
+  const hasConversation = Boolean(
+    result?.assistant_message || (result?.options && result.options.length > 0),
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -152,7 +157,7 @@ function App() {
     return () => mq.removeEventListener('change', update)
   }, [])
 
-  const runDemo = async (finalPrompt: string) => {
+  const runDemo = async (finalPrompt: string, opts?: { keepResult?: boolean }) => {
     if (!finalPrompt.trim() || isLoading) return
 
     setIsLoading(true)
@@ -160,7 +165,9 @@ function App() {
     pendingResultRef.current = null
     setError('')
     setErrorHint('')
-    setResult(null)
+    if (!opts?.keepResult) {
+      setResult(null)
+    }
     setSubmittedPrompt(finalPrompt.trim())
     loadStartedAtRef.current = Date.now()
 
@@ -203,10 +210,24 @@ function App() {
         setResult((prev) => ({
           ...prev,
           ...data,
+          kind: 'agent',
           campaign: data.campaign || prev?.campaign,
         }))
         setIsLoading(false)
         setSubmittedPrompt(finalPrompt.trim())
+        setPrompt('')
+        return
+      }
+
+      if (data.stage === 'refine') {
+        setResult((prev) => ({
+          ...prev,
+          ...data,
+          kind: 'website',
+          projectPath: data.projectPath || prev?.projectPath,
+          previewUrl: prev?.previewUrl || data.previewUrl,
+        }))
+        setIsLoading(false)
         setPrompt('')
         return
       }
@@ -259,6 +280,10 @@ function App() {
     setTimeout(() => runDemo(example), 60)
   }
 
+  const handleSelectOption = (option: FollowUpOption) => {
+    runDemo(option.prompt, { keepResult: true })
+  }
+
   const publishCampaign = async () => {
     if (!sessionId || isPublishing) return
     setIsPublishing(true)
@@ -298,7 +323,7 @@ function App() {
     localStorage.removeItem(SESSION_KEY)
   }
 
-  const showComposer = !result || isAgentResult
+  const showComposer = !isLoading && (!result || isAgentResult || hasConversation)
 
   return (
     <div className="flex h-svh flex-col overflow-hidden bg-black text-white">
@@ -386,13 +411,27 @@ function App() {
               sessionId={sessionId}
               onPublish={publishCampaign}
               onReset={reset}
+              onSelectOption={handleSelectOption}
               isPublishing={isPublishing}
+              isLoading={isLoading}
             />
           )}
 
           {/* Website result */}
           {result && result.success && result.projectPath && !isAgentResult && (
             <div className="flex min-h-0 flex-1 flex-col animate-fade-in">
+              {hasConversation && (
+                <div className="shrink-0 border-b border-neutral-800 px-4 py-3">
+                  <AgentOptions
+                    assistantMessage={result.assistant_message}
+                    options={result.options}
+                    autoContinueAfterMs={result.auto_continue_after_ms}
+                    onSelect={handleSelectOption}
+                    disabled={isLoading}
+                  />
+                </div>
+              )}
+
               <div className="flex shrink-0 items-center justify-between border-b border-neutral-800 px-4 py-2.5">
                 <div>
                   <p className="text-sm text-white">Project ready</p>
@@ -510,7 +549,11 @@ function App() {
                 <textarea
                   ref={textareaRef}
                   className="max-h-[120px] min-h-[24px] flex-1 resize-none bg-transparent py-1 text-sm leading-relaxed text-white placeholder:text-neutral-600 focus:outline-none"
-                  placeholder="Build a site, make a meta ad, or publish a campaign..."
+                  placeholder={
+                    hasConversation
+                      ? 'Refine copy, pick an option above, or describe changes…'
+                      : 'Build a site, make a meta ad, or publish a campaign...'
+                  }
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   onKeyDown={handleKeyDown}
