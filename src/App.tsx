@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
+import { CampaignPanel, type AgentResponse } from './CampaignPanel'
 import { FileWriterPanel } from './FileWriterPanel'
 import './index.css'
 
-interface CreateResponse {
-  success: boolean
-  stage?: string
+interface CreateResponse extends AgentResponse {
+  kind?: 'website' | 'agent' | string
   prompt?: string
   intent?: {
     message?: string
@@ -16,10 +16,12 @@ interface CreateResponse {
   previewUrl?: string
   previewPort?: number
   nextSteps?: string[]
-  error?: string
 }
 
+const SESSION_KEY = 'bigtits-agent-session'
+
 const EXAMPLE_PROMPTS = [
+  { label: 'Meta ad campaign', prompt: 'Make a meta ad campaign for my coffee shop targeting local customers' },
   { label: 'Electronic store', prompt: 'Build an electronic store website' },
   { label: 'Furniture shop', prompt: 'Create a furniture store website' },
   { label: 'Cafe website', prompt: 'Create a website for my cafe' },
@@ -108,11 +110,14 @@ function App() {
   const [submittedPrompt, setSubmittedPrompt] = useState('')
   const [isMobile, setIsMobile] = useState(false)
   const [flushFiles, setFlushFiles] = useState(false)
+  const [sessionId, setSessionId] = useState(() => localStorage.getItem(SESSION_KEY) || '')
+  const [isPublishing, setIsPublishing] = useState(false)
   const pendingResultRef = useRef<CreateResponse | null>(null)
   const loadStartedAtRef = useRef(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const previewSrc = getPreviewSrc(result?.previewUrl)
+  const isAgentResult = result?.kind === 'agent' || result?.route_type === 'create' || result?.route_type === 'publish'
+  const previewSrc = isAgentResult ? null : getPreviewSrc(result?.previewUrl)
 
   useEffect(() => {
     let cancelled = false
@@ -165,7 +170,10 @@ function App() {
       const res = await fetch(`${API_URL}/api/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: finalPrompt.trim() }),
+        body: JSON.stringify({
+          prompt: finalPrompt.trim(),
+          session_id: sessionId || undefined,
+        }),
       })
 
       const data = await res.json() as CreateResponse & { hint?: string }
@@ -181,8 +189,28 @@ function App() {
         return
       }
 
+      if (data.session_id) {
+        setSessionId(data.session_id)
+        localStorage.setItem(SESSION_KEY, data.session_id)
+      }
+
+      const isAgent = data.kind === 'agent' || data.route_type === 'create' || data.route_type === 'publish'
+
       generationSucceeded = true
       pendingResultRef.current = data
+
+      if (isAgent) {
+        setResult((prev) => ({
+          ...prev,
+          ...data,
+          campaign: data.campaign || prev?.campaign,
+        }))
+        setIsLoading(false)
+        setSubmittedPrompt(finalPrompt.trim())
+        setPrompt('')
+        return
+      }
+
       setFlushFiles(true)
       setPrompt('')
     } catch {
@@ -231,6 +259,34 @@ function App() {
     setTimeout(() => runDemo(example), 60)
   }
 
+  const publishCampaign = async () => {
+    if (!sessionId || isPublishing) return
+    setIsPublishing(true)
+    setError('')
+    setErrorHint('')
+
+    try {
+      const res = await fetch(`${API_URL}/api/agent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'publish this campaign',
+          session_id: sessionId,
+        }),
+      })
+      const data = await res.json() as CreateResponse
+      if (!res.ok || !data.success) {
+        setError(data.error || data.message || 'Publish failed')
+        return
+      }
+      setResult({ ...result, ...data, kind: 'agent', campaign: result?.campaign || data.campaign })
+    } catch {
+      setError('Could not connect to publish endpoint')
+    } finally {
+      setIsPublishing(false)
+    }
+  }
+
   const reset = () => {
     setResult(null)
     setError('')
@@ -238,9 +294,11 @@ function App() {
     setPrompt('')
     setSubmittedPrompt('')
     setFlushFiles(false)
+    setSessionId('')
+    localStorage.removeItem(SESSION_KEY)
   }
 
-  const showComposer = !result
+  const showComposer = !result || isAgentResult
 
   return (
     <div className="flex h-svh flex-col overflow-hidden bg-black text-white">
@@ -283,7 +341,7 @@ function App() {
                 What should we build?
               </h1>
               <p className="max-w-md text-center text-sm leading-relaxed text-neutral-500">
-                Describe a project in plain language. We generate the full codebase and preview it live.
+                Build websites, create Meta ad campaigns with 5 creatives, or say &ldquo;publish this campaign&rdquo; to push live via connectors.
               </p>
             </div>
           )}
@@ -321,8 +379,19 @@ function App() {
             </div>
           )}
 
-          {/* Result */}
-          {result && result.success && result.projectPath && (
+          {/* Agent result — Meta campaign draft or publish */}
+          {result && result.success && isAgentResult && (
+            <CampaignPanel
+              result={result}
+              sessionId={sessionId}
+              onPublish={publishCampaign}
+              onReset={reset}
+              isPublishing={isPublishing}
+            />
+          )}
+
+          {/* Website result */}
+          {result && result.success && result.projectPath && !isAgentResult && (
             <div className="flex min-h-0 flex-1 flex-col animate-fade-in">
               <div className="flex shrink-0 items-center justify-between border-b border-neutral-800 px-4 py-2.5">
                 <div>
@@ -441,7 +510,7 @@ function App() {
                 <textarea
                   ref={textareaRef}
                   className="max-h-[120px] min-h-[24px] flex-1 resize-none bg-transparent py-1 text-sm leading-relaxed text-white placeholder:text-neutral-600 focus:outline-none"
-                  placeholder="Describe what you want to build..."
+                  placeholder="Build a site, make a meta ad, or publish a campaign..."
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   onKeyDown={handleKeyDown}
