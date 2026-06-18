@@ -64,19 +64,13 @@ function getPreviewSrc(url?: string): string | null {
 
   try {
     const parsed = new URL(url)
-    if (parsed.hostname === RAILWAY_API_HOST && parsed.pathname.startsWith('/preview/')) {
-      const slug = parsed.pathname.slice('/preview'.length).replace(/\/$/, '')
-      return `/api/preview${slug}${parsed.search}`
+    if (import.meta.env.PROD && parsed.hostname === RAILWAY_API_HOST && parsed.pathname.startsWith('/preview/')) {
+      return `${parsed.pathname}${parsed.search}`
     }
     return url
   } catch {
     return isLocalPreviewUrl(url) ? null : url
   }
-}
-
-function getExternalPreviewUrl(url?: string): string | null {
-  if (!url || isLocalPreviewUrl(url)) return null
-  return url
 }
 
 async function checkBackendStatus(): Promise<StatusResponse> {
@@ -136,7 +130,6 @@ function App() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const previewSrc = getPreviewSrc(result?.previewUrl)
-  const externalPreviewUrl = getExternalPreviewUrl(result?.previewUrl)
 
   useEffect(() => {
     let cancelled = false
@@ -400,38 +393,26 @@ function App() {
                 </div>
               </div>
 
-              {previewSrc && !isMobile ? (
-                <iframe
-                  src={previewSrc}
-                  className="min-h-0 flex-1 w-full border-0 bg-white"
-                  title="Live project preview"
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                />
-              ) : previewSrc && isMobile ? (
+              {previewSrc && isMobile ? (
                 <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
                   <p className="text-sm text-neutral-300">Preview is ready</p>
                   <p className="max-w-xs text-sm leading-relaxed text-neutral-500">
                     Tap below to view your generated site full screen.
                   </p>
-                  <button
-                    onClick={() => {
-                      window.location.href = previewSrc.startsWith('/')
-                        ? previewSrc
-                        : previewSrc
-                    }}
+                  <a
+                    href={previewSrc}
                     className="w-full max-w-xs border border-white px-4 py-3 text-sm text-white hover:bg-neutral-900"
                   >
                     View preview
-                  </button>
-                  {externalPreviewUrl && (
-                    <button
-                      onClick={() => window.open(externalPreviewUrl, '_blank')}
-                      className="text-xs text-neutral-500 underline underline-offset-2"
-                    >
-                      Open in browser
-                    </button>
-                  )}
+                  </a>
                 </div>
+              ) : previewSrc ? (
+                <iframe
+                  src={previewSrc}
+                  className="min-h-0 flex-1 w-full border-0 bg-white"
+                  title="Live project preview"
+                  allow="fullscreen"
+                />
               ) : (
                 <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
                   {result.previewUrl && isLocalPreviewUrl(result.previewUrl) ? (
