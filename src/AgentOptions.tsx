@@ -70,7 +70,12 @@ export function AgentOptions({
   if (!assistantMessage && options.length === 0) return null
 
   return (
-    <div className="border border-neutral-800 bg-neutral-950 p-4">
+    <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-4">
+      {options.length > 0 && (
+        <p className="mb-2 text-[11px] uppercase tracking-widest text-neutral-600">
+          Choose what happens next
+        </p>
+      )}
       {assistantMessage && (
         <p className="text-sm leading-relaxed text-neutral-300">{assistantMessage}</p>
       )}

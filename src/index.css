@@ -68,6 +68,153 @@ textarea {
   overscroll-behavior: contain;
 }
 
+.app-shell {
+  padding-top: env(safe-area-inset-top);
+}
+
+.app-main-grid {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.preview-frame {
+  color-scheme: light;
+}
+
+.mobile-sidebar-backdrop {
+  display: none;
+}
+
+.simulation-phone {
+  box-shadow:
+    0 24px 80px rgba(255, 255, 255, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+@media (max-width: 768px), (pointer: coarse) {
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-width: 0;
+    touch-action: manipulation;
+  }
+
+  body {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  textarea,
+  input {
+    -webkit-user-select: text;
+    user-select: text;
+    font-size: 16px;
+  }
+
+  .chat-sidebar-rail {
+    display: none;
+  }
+
+  .chat-sidebar-panel {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    width: min(320px, calc(100vw - 42px));
+    max-height: none;
+    padding-top: env(safe-area-inset-top);
+    box-shadow: 24px 0 80px rgba(0, 0, 0, 0.65);
+  }
+
+  .mobile-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    border: 0;
+    background: rgba(0, 0, 0, 0.62);
+    padding: 0;
+  }
+
+  .app-main-grid.chat-only {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .app-main-grid.has-output {
+    grid-template-rows: minmax(0, 0.4fr) minmax(0, 0.6fr);
+  }
+
+  .app-main-grid.chat-only .result-pane {
+    display: none;
+  }
+
+  .chat-pane {
+    min-height: 0;
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+    background:
+      radial-gradient(circle at 50% 12%, rgba(255, 255, 255, 0.075), transparent 28%),
+      linear-gradient(180deg, #020202 0%, #000 52%, #020202 100%);
+  }
+
+  .result-pane {
+    min-height: 0;
+    background: #020202;
+  }
+
+  .chat-pane .scroll-area {
+    padding: 0.75rem;
+  }
+
+  .mobile-welcome {
+    padding: 1.5rem 0.25rem;
+  }
+
+  .welcome-mark {
+    box-shadow:
+      0 0 48px rgba(255, 255, 255, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .result-pane .scroll-area {
+    background: linear-gradient(180deg, #020202 0%, #050505 100%);
+  }
+
+  .project-toolbar {
+    align-items: flex-start;
+    padding: 0.75rem;
+  }
+
+  .project-toolbar > div:first-child {
+    min-width: 0;
+  }
+
+  .project-toolbar > div:last-child {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .preview-frame {
+    min-height: 0;
+    border-radius: 0;
+  }
+
+  .live-simulation {
+    padding: 0.75rem;
+  }
+
+  .simulation-phone {
+    min-height: 190px;
+    border-radius: 22px;
+  }
+}
+
+@media (min-width: 769px) and (pointer: fine) {
+  .app-main-grid {
+    grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+}
+
 /* Split-pane grid: allow children to shrink inside h-svh layout */
 .grid > * {
   min-height: 0;

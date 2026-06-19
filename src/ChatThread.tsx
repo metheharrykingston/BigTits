@@ -79,11 +79,30 @@ export function ChatThread({
     <div className={`flex min-h-0 flex-1 flex-col ${className}`}>
       <div className="scroll-area min-h-0 flex-1 px-4 py-4">
         {!hasContent && (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <p className="text-sm text-neutral-500">Conversation appears here</p>
-            <p className="mt-1 max-w-xs text-xs text-neutral-600">
-              Ask for a website, Meta ad, or post — status updates stream in as work runs.
+          <div className="mobile-welcome flex h-full flex-col items-center justify-center text-center">
+            <div className="welcome-mark mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-neutral-800 bg-neutral-950 shadow-2xl">
+              <span className="text-base font-bold tracking-tighter text-white">BT</span>
+            </div>
+            <p className="text-balance text-2xl font-semibold tracking-tight text-white">
+              What should your AI employee do?
             </p>
+            <p className="mt-3 max-w-xs text-sm leading-relaxed text-neutral-500">
+              Build a mobile site, write an ad, publish a post, or ask for changes after it drafts.
+            </p>
+            <div className="mt-5 grid w-full max-w-xs grid-cols-2 gap-2 text-left text-xs text-neutral-400">
+              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/80 p-3">
+                Build websites
+              </div>
+              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/80 p-3">
+                Make ads
+              </div>
+              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/80 p-3">
+                Write posts
+              </div>
+              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/80 p-3">
+                Refine results
+              </div>
+            </div>
           </div>
         )}
 

@@ -312,8 +312,9 @@ function App() {
     setSubmittedPrompt(finalPrompt.trim())
     loadStartedAtRef.current = Date.now()
     setLiveActivities([
-      liveActivity('Sending request to API'),
-      liveActivity('Routing intent & skills'),
+      liveActivity('Understanding your request'),
+      liveActivity('Choosing the best template or skill'),
+      liveActivity('Preparing a live result'),
     ])
 
     let generationSucceeded = false
@@ -488,9 +489,10 @@ function App() {
   const backendUnreachable = backendStatus === 'unreachable'
   const showComposer = !isLoading && !backendUnreachable
   const activeSummary = sessions.find((s) => s.session_id === sessionId)
+  const hasOutput = Boolean(isLoading || result || error)
 
   return (
-    <div className="flex h-svh overflow-hidden bg-black text-white">
+    <div className="app-shell flex h-svh overflow-hidden bg-black text-white">
       <ChatSidebar
         sessions={sessions}
         activeSessionId={sessionId}
@@ -501,6 +503,14 @@ function App() {
         onDelete={handleDeleteSession}
         onToggle={() => setSidebarCollapsed((v) => !v)}
       />
+      {!sidebarCollapsed && (
+        <button
+          type="button"
+          aria-label="Close chats"
+          className="mobile-sidebar-backdrop"
+          onClick={() => setSidebarCollapsed(true)}
+        />
+      )}
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-11 shrink-0 items-center justify-between border-b border-neutral-800 px-4">
@@ -562,9 +572,9 @@ function App() {
           </div>
         )}
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] overflow-hidden md:grid-cols-[minmax(280px,360px)_minmax(0,1fr)] md:grid-rows-1">
+        <div className={`app-main-grid ${hasOutput ? 'has-output' : 'chat-only'} grid min-h-0 flex-1 overflow-hidden`}>
           {/* Chat column — conversation + composer */}
-          <section className="flex min-h-0 flex-col overflow-hidden border-b border-neutral-800 md:border-b-0 md:border-r">
+          <section className="chat-pane flex min-h-0 flex-col overflow-hidden border-b border-neutral-800 md:border-b-0 md:border-r">
             <ChatThread
               messages={messages}
               activities={activities}
@@ -621,7 +631,7 @@ function App() {
           </section>
 
           {/* Result column — draft, preview, loading */}
-          <section className="flex min-h-0 flex-col overflow-hidden">
+          <section className="result-pane flex min-h-0 flex-col overflow-hidden">
             <div className="scroll-area min-h-0 flex-1">
               {!result && !isLoading && !error && messages.length === 0 && (
                 <div className="flex flex-1 flex-col items-center justify-center px-6 animate-fade-in">
@@ -682,6 +692,7 @@ function App() {
                 {hasConversation && (
                   <div className="shrink-0 border-b border-neutral-800 px-4 py-3">
                     <AgentOptions
+                      assistantMessage={result.assistant_message}
                       options={result.options}
                       autoContinueAfterMs={result.auto_continue_after_ms}
                       onSelect={handleSelectOption}
@@ -690,12 +701,12 @@ function App() {
                   </div>
                 )}
 
-                <div className="flex shrink-0 items-center justify-between border-b border-neutral-800 px-4 py-2.5">
+                <div className="project-toolbar flex shrink-0 items-center justify-between gap-3 border-b border-neutral-800 px-4 py-2.5">
                   <div>
                     <p className="text-sm text-white">Project ready</p>
                     <p className="text-xs text-neutral-500">Saved in this chat session — resume anytime from sidebar</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-2">
                     {previewSrc && (
                       <>
                         <button
@@ -737,25 +748,10 @@ function App() {
                   </div>
                 </div>
 
-                {previewSrc && isMobile ? (
-                  <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-                    <p className="text-sm text-neutral-300">Preview is ready</p>
-                    <p className="max-w-xs text-sm leading-relaxed text-neutral-500">
-                      Tap below to view your generated site full screen.
-                    </p>
-                    <a
-                      href={previewSrc}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full max-w-xs border border-white px-4 py-3 text-sm text-white hover:bg-neutral-900"
-                    >
-                      View preview
-                    </a>
-                  </div>
-                ) : previewSrc ? (
+                {previewSrc ? (
                   <iframe
                     src={previewSrc}
-                    className="block h-full min-h-[240px] w-full flex-1 border-0 bg-white"
+                    className="preview-frame block h-full min-h-[240px] w-full flex-1 border-0 bg-white"
                     title="Live project preview"
                     allow="fullscreen"
                   />

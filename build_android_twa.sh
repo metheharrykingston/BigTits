@@ -59,6 +59,13 @@ if [[ "$CLEAN" == true ]]; then
 fi
 
 if [[ "$MODE" == "release" ]]; then
+  if [[ ! -f android.keystore ]]; then
+    echo "Release keystore is missing: $(pwd)/android.keystore"
+    echo "TWA cannot make a trusted release without the same signing key used in assetlinks.json."
+    echo "Either restore android.keystore or create a new release key and update public/.well-known/assetlinks.json with its SHA-256 fingerprint."
+    exit 1
+  fi
+
   echo "Building signed release APK and AAB..."
   bubblewrap build --skipPwaValidation
   echo "APK: $(pwd)/app-release-signed.apk"
