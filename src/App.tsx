@@ -478,7 +478,9 @@ function App() {
 
   const selectExample = (example: string) => {
     setPrompt(example)
-    setTimeout(() => runDemo(example), 60)
+    window.requestAnimationFrame(() => {
+      textareaRef.current?.focus()
+    })
   }
 
   const handleSelectOption = (option: FollowUpOption) => {

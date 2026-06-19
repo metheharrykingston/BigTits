@@ -97,7 +97,7 @@ export function ChatThread({
               What should your AGI build?
             </p>
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-neutral-500">
-              Build a mobile site, write an ad, publish a post, or ask for changes after it drafts.
+              Tap a starter to fill the chat box, or type your own request below.
             </p>
             <div className="mt-5 grid w-full max-w-xs grid-cols-2 gap-2 text-left">
               {quickActions.map((action) => (
