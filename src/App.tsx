@@ -3,7 +3,6 @@ import { AgentOptions, type FollowUpOption } from './AgentOptions'
 import { CampaignPanel, type AgentResponse } from './CampaignPanel'
 import { ChatSidebar } from './ChatSidebar'
 import { ChatThread } from './ChatThread'
-import { FileWriterPanel } from './FileWriterPanel'
 import { apiFetch, apiHint, apiUrl, readApiJson } from './lib/api'
 import {
   createSession,
@@ -171,7 +170,6 @@ function App() {
   const [backendHint, setBackendHint] = useState('')
   const [submittedPrompt, setSubmittedPrompt] = useState('')
   const [isMobile, setIsMobile] = useState(false)
-  const [flushFiles, setFlushFiles] = useState(false)
   const [sessionId, setSessionId] = useState(() => localStorage.getItem(SESSION_KEY) || '')
   const [sessionTitle, setSessionTitle] = useState('New chat')
   const [sessions, setSessions] = useState<SessionSummary[]>([])
@@ -181,9 +179,8 @@ function App() {
   const [activities, setActivities] = useState<SessionActivity[]>([])
   const [liveActivities, setLiveActivities] = useState<SessionActivity[]>([])
   const [isPublishing, setIsPublishing] = useState(false)
-  const pendingResultRef = useRef<CreateResponse | null>(null)
-  const loadStartedAtRef = useRef(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const pollTimerRef = useRef<number | null>(null)
 
   const isAgentResult =
     result?.kind === 'agent' ||
@@ -227,6 +224,12 @@ function App() {
     }
     setError('')
     setErrorHint('')
+  }, [])
+
+  const mergeLiveSnapshot = useCallback((snapshot: SessionSnapshot) => {
+    setSessionTitle(snapshot.title)
+    setMessages(snapshot.messages || [])
+    setActivities(snapshot.activities || [])
   }, [])
 
   const loadSessionById = useCallback(async (id: string) => {
@@ -302,7 +305,6 @@ function App() {
       setErrorHint('')
       setPrompt('')
       setSubmittedPrompt('')
-      setFlushFiles(false)
       await refreshSessions()
     } catch {
       setError('Could not create a new chat session')
@@ -329,27 +331,53 @@ function App() {
     if (id) await loadSessionById(id)
   }
 
+  const stopSessionPolling = useCallback(() => {
+    if (pollTimerRef.current != null) {
+      window.clearInterval(pollTimerRef.current)
+      pollTimerRef.current = null
+    }
+  }, [])
+
+  const startSessionPolling = useCallback((id: string) => {
+    stopSessionPolling()
+    pollTimerRef.current = window.setInterval(async () => {
+      const snapshot = await fetchSession(id)
+      if (snapshot) {
+        mergeLiveSnapshot(snapshot)
+      }
+    }, 900)
+  }, [mergeLiveSnapshot, stopSessionPolling])
+
+  useEffect(() => () => stopSessionPolling(), [stopSessionPolling])
+
   const runDemo = async (finalPrompt: string, opts?: { keepResult?: boolean }) => {
     if (!finalPrompt.trim() || isLoading) return
 
+    let ensuredSessionId = sessionId
+    if (!ensuredSessionId) {
+      ensuredSessionId = await createSession()
+      setSessionId(ensuredSessionId)
+      localStorage.setItem(SESSION_KEY, ensuredSessionId)
+      setSessionTitle('New chat')
+      await refreshSessions()
+    }
+
     setIsLoading(true)
-    setFlushFiles(false)
-    pendingResultRef.current = null
     setError('')
     setErrorHint('')
     if (!opts?.keepResult) {
       setResult(null)
     }
     setSubmittedPrompt(finalPrompt.trim())
-    loadStartedAtRef.current = Date.now()
     setLiveActivities([
       liveActivity('Understanding your request'),
       liveActivity('Choosing the best template or skill'),
-      liveActivity('Preparing a live result'),
+      liveActivity('Preparing a real-time result'),
     ])
 
     let generationSucceeded = false
-    let activeSid = sessionId
+    let activeSid = ensuredSessionId
+    startSessionPolling(activeSid)
 
     try {
       const res = await apiFetch('/api/create', {
@@ -357,7 +385,7 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: finalPrompt.trim(),
-          session_id: sessionId || undefined,
+          session_id: activeSid || undefined,
         }),
       })
 
@@ -392,7 +420,6 @@ function App() {
       const isAgent = data.kind === 'agent' || data.route_type === 'create' || data.route_type === 'publish'
 
       generationSucceeded = true
-      pendingResultRef.current = data
 
       if (isAgent) {
         setResult((prev) => ({
@@ -407,6 +434,7 @@ function App() {
         setSubmittedPrompt(finalPrompt.trim())
         setPrompt('')
         setLiveActivities([])
+        stopSessionPolling()
         await syncSessionState(activeSid)
         return
       }
@@ -422,12 +450,16 @@ function App() {
         setIsLoading(false)
         setPrompt('')
         setLiveActivities([])
+        stopSessionPolling()
         await syncSessionState(activeSid)
         return
       }
-
-      setFlushFiles(true)
+      setResult(data)
+      setIsLoading(false)
       setPrompt('')
+      setLiveActivities([])
+      stopSessionPolling()
+      await syncSessionState(activeSid)
     } catch (err) {
       setError('Could not connect to the generator')
       setErrorHint(
@@ -440,28 +472,10 @@ function App() {
     } finally {
       if (!generationSucceeded) {
         setIsLoading(false)
-        setFlushFiles(false)
         setLiveActivities([])
+        stopSessionPolling()
       }
     }
-  }
-
-  const handleFileWriterFinish = () => {
-    const minDuration = 2200
-    const elapsed = Date.now() - loadStartedAtRef.current
-    const remaining = Math.max(0, minDuration - elapsed)
-
-    window.setTimeout(async () => {
-      const ready = pendingResultRef.current
-      if (ready) setResult(ready)
-      pendingResultRef.current = null
-      setIsLoading(false)
-      setFlushFiles(false)
-      setLiveActivities([])
-      if (ready?.session_id) {
-        await syncSessionState(ready.session_id)
-      }
-    }, remaining)
   }
 
   const handleSubmit = (e?: React.FormEvent) => {
@@ -696,12 +710,15 @@ function App() {
                   <p className="shrink-0 border-b border-neutral-800 px-4 py-2 text-xs text-neutral-600">
                     {submittedPrompt}
                   </p>
-                  <FileWriterPanel
-                    prompt={submittedPrompt}
-                    active={isLoading}
-                    flush={flushFiles}
-                    onFinish={handleFileWriterFinish}
-                  />
+                  <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+                    <div className="w-full max-w-xl rounded-3xl border border-neutral-800 bg-neutral-950/90 p-5">
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-neutral-500">Live reasoning</p>
+                      <p className="mt-3 text-lg font-medium text-white">AGI is working through your request</p>
+                      <p className="mt-2 text-sm leading-relaxed text-neutral-500">
+                        Real steps stream into the chat above as the pipeline routes, matches a template, and prepares the result.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
 
