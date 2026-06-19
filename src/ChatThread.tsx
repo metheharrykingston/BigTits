@@ -84,7 +84,7 @@ export function ChatThread({
               <span className="text-base font-bold tracking-tighter text-white">BT</span>
             </div>
             <p className="text-balance text-2xl font-semibold tracking-tight text-white">
-              What should your AI employee do?
+              What should your AGI build?
             </p>
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-neutral-500">
               Build a mobile site, write an ad, publish a post, or ask for changes after it drafts.

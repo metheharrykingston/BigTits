@@ -583,8 +583,20 @@ function App() {
               assistantMessage={result?.assistant_message}
             />
 
+            {hasConversation && (
+              <div className="mobile-chat-followup shrink-0 border-t border-neutral-800 px-3 py-3">
+                <AgentOptions
+                  assistantMessage={result?.assistant_message}
+                  options={result?.options}
+                  autoContinueAfterMs={result?.auto_continue_after_ms}
+                  onSelect={handleSelectOption}
+                  disabled={isLoading}
+                />
+              </div>
+            )}
+
             {showComposer && (
-              <div className="shrink-0 border-t border-neutral-800 px-3 py-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+              <div className="composer-panel shrink-0 border-t border-neutral-800 px-3 py-3 pb-[max(12px,env(safe-area-inset-bottom))]">
                 <form onSubmit={handleSubmit}>
                   <div className="input-shell flex items-end gap-2 rounded-2xl border border-neutral-800 bg-neutral-950 px-3 py-2 transition-colors">
                     <textarea
@@ -612,7 +624,7 @@ function App() {
                   </div>
 
                   {!isLoading && !error && messages.length === 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
+                    <div className="example-strip mt-2 flex flex-wrap gap-1.5">
                       {EXAMPLE_PROMPTS.map((ex) => (
                         <button
                           key={ex.label}
