@@ -7,6 +7,14 @@ interface ChatThreadProps {
   liveActivities?: SessionActivity[]
   isWorking?: boolean
   assistantMessage?: string
+  quickActions?: {
+    label: string
+    description: string
+    prompt: string
+    icon: string
+    accent: string
+  }[]
+  onQuickAction?: (prompt: string) => void
   className?: string
 }
 
@@ -42,6 +50,8 @@ export function ChatThread({
   liveActivities = [],
   isWorking = false,
   assistantMessage,
+  quickActions = [],
+  onQuickAction,
   className = '',
 }: ChatThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -89,19 +99,23 @@ export function ChatThread({
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-neutral-500">
               Build a mobile site, write an ad, publish a post, or ask for changes after it drafts.
             </p>
-            <div className="mt-5 grid w-full max-w-xs grid-cols-2 gap-2 text-left text-xs text-neutral-400">
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/80 p-3">
-                Build websites
-              </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/80 p-3">
-                Make ads
-              </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/80 p-3">
-                Write posts
-              </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/80 p-3">
-                Refine results
-              </div>
+            <div className="mt-5 grid w-full max-w-xs grid-cols-2 gap-2 text-left">
+              {quickActions.map((action) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  className="welcome-action rounded-2xl border border-neutral-800 bg-neutral-950/80 p-3 text-left transition active:scale-[0.98]"
+                  onClick={() => onQuickAction?.(action.prompt)}
+                >
+                  <span className={`mb-3 flex h-9 w-9 items-center justify-center rounded-xl text-base ${action.accent}`}>
+                    {action.icon}
+                  </span>
+                  <span className="block text-sm font-medium text-neutral-100">{action.label}</span>
+                  <span className="mt-1 block text-xs leading-relaxed text-neutral-500">
+                    {action.description}
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
         )}

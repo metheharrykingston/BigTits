@@ -44,6 +44,37 @@ const EXAMPLE_PROMPTS = [
   { label: 'Portfolio', prompt: 'Make a personal portfolio website' },
 ]
 
+const QUICK_ACTIONS = [
+  {
+    label: 'Build websites',
+    description: 'Create a mobile-ready site.',
+    prompt: 'Build a mobile-ready website for my business',
+    icon: '◎',
+    accent: 'bg-violet-500/20 text-violet-200 ring-1 ring-violet-500/40',
+  },
+  {
+    label: 'Make ads',
+    description: 'Generate campaigns.',
+    prompt: 'Make a meta ad campaign for my business',
+    icon: '↗',
+    accent: 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/40',
+  },
+  {
+    label: 'Write posts',
+    description: 'Draft social content.',
+    prompt: 'Write a social media post for my business',
+    icon: '✎',
+    accent: 'bg-sky-500/20 text-sky-200 ring-1 ring-sky-500/40',
+  },
+  {
+    label: 'Refine results',
+    description: 'Improve existing work.',
+    prompt: 'Help me refine the latest result',
+    icon: '✦',
+    accent: 'bg-amber-500/20 text-amber-200 ring-1 ring-amber-500/40',
+  },
+]
+
 type BackendStatus = 'checking' | 'ready' | 'degraded' | 'unreachable' | 'unconfigured'
 
 interface StatusResponse {
@@ -535,7 +566,7 @@ function App() {
                 {sessionTitle || activeSummary?.title || 'New chat'}
               </p>
               {sessionId && (
-                <p className="truncate font-mono text-[10px] text-neutral-600">
+                <p className="session-meta truncate font-mono text-[10px] text-neutral-600">
                   {activeSummary?.status === 'working' ? 'Working…' : activeSummary?.status || 'idle'}
                   {' · '}
                   {sessionId.slice(0, 8)}
@@ -581,6 +612,8 @@ function App() {
               liveActivities={liveActivities}
               isWorking={isLoading || isPublishing}
               assistantMessage={result?.assistant_message}
+              quickActions={QUICK_ACTIONS}
+              onQuickAction={selectExample}
             />
 
             {hasConversation && (
