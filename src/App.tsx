@@ -32,6 +32,11 @@ interface CreateResponse extends AgentResponse {
   variables?: Record<string, string>
 }
 
+interface PendingUserMessage {
+  content: string
+  at: string
+}
+
 function restoredResultFromSnapshot(snapshot: SessionSnapshot): CreateResponse | null {
   const restore = snapshot.restore as CreateResponse | null | undefined
   if (!restore) return null
@@ -112,16 +117,6 @@ function getPreviewSrc(url?: string): string | null {
   return url
 }
 
-function liveActivity(label: string, stage = 'client'): SessionActivity {
-  return {
-    id: `live-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    stage,
-    label,
-    status: 'running',
-    at: new Date().toISOString(),
-  }
-}
-
 async function checkBackendStatus(): Promise<StatusResponse> {
   try {
     const path = import.meta.env.PROD ? '/api/status' : '/ready'
@@ -179,7 +174,6 @@ function App() {
   const [backendStatus, setBackendStatus] = useState<BackendStatus>('checking')
   const [backendMessage, setBackendMessage] = useState('')
   const [backendHint, setBackendHint] = useState('')
-  const [submittedPrompt, setSubmittedPrompt] = useState('')
   const [isMobile, setIsMobile] = useState(false)
   const [sessionId, setSessionId] = useState(() => localStorage.getItem(SESSION_KEY) || '')
   const [sessionTitle, setSessionTitle] = useState('New chat')
@@ -189,6 +183,7 @@ function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [activities, setActivities] = useState<SessionActivity[]>([])
   const [liveActivities, setLiveActivities] = useState<SessionActivity[]>([])
+  const [pendingUserMessage, setPendingUserMessage] = useState<PendingUserMessage | null>(null)
   const [isPublishing, setIsPublishing] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const pollTimerRef = useRef<number | null>(null)
@@ -222,6 +217,7 @@ function App() {
     setMessages(snapshot.messages || [])
     setActivities(snapshot.activities || [])
     setLiveActivities([])
+    setPendingUserMessage(null)
     setResult(restoredResultFromSnapshot(snapshot))
     setError('')
     setErrorHint('')
@@ -231,6 +227,7 @@ function App() {
     setSessionTitle(snapshot.title)
     setMessages(snapshot.messages || [])
     setActivities(snapshot.activities || [])
+    setPendingUserMessage(null)
     setResult((prev) => {
       const restored = restoredResultFromSnapshot(snapshot)
       if (restored) {
@@ -318,11 +315,11 @@ function App() {
       setMessages([])
       setActivities([])
       setLiveActivities([])
+      setPendingUserMessage(null)
       setResult(null)
       setError('')
       setErrorHint('')
       setPrompt('')
-      setSubmittedPrompt('')
       await refreshSessions()
     } catch {
       setError('Could not create a new chat session')
@@ -338,6 +335,7 @@ function App() {
     setMessages([])
     setActivities([])
     setLiveActivities([])
+    setPendingUserMessage(null)
     await loadSessionById(id)
     if (isMobile) setSidebarCollapsed(true)
   }
@@ -394,12 +392,11 @@ function App() {
     if (!opts?.keepResult) {
       setResult(null)
     }
-    setSubmittedPrompt(finalPrompt.trim())
-    setLiveActivities([
-      liveActivity('Understanding your request'),
-      liveActivity('Choosing the best template or skill'),
-      liveActivity('Preparing a real-time result'),
-    ])
+    setPendingUserMessage({
+      content: finalPrompt.trim(),
+      at: new Date().toISOString(),
+    })
+    setPrompt('')
 
     let generationSucceeded = false
     let activeSid = ensuredSessionId
@@ -458,8 +455,6 @@ function App() {
           draft_type: data.draft_type || prev?.draft_type,
         }))
         setIsLoading(false)
-        setSubmittedPrompt(finalPrompt.trim())
-        setPrompt('')
         setLiveActivities([])
         stopSessionPolling()
         await syncSessionState(activeSid)
@@ -475,7 +470,6 @@ function App() {
           previewUrl: prev?.previewUrl || data.previewUrl,
         }))
         setIsLoading(false)
-        setPrompt('')
         setLiveActivities([])
         stopSessionPolling()
         await syncSessionState(activeSid)
@@ -483,7 +477,6 @@ function App() {
       }
       setResult(data)
       setIsLoading(false)
-      setPrompt('')
       setLiveActivities([])
       stopSessionPolling()
       await syncSessionState(activeSid)
@@ -534,7 +527,6 @@ function App() {
     setIsPublishing(true)
     setError('')
     setErrorHint('')
-    setLiveActivities([liveActivity('Publishing via n8n connector', 'publish')])
 
     try {
       const res = await apiFetch('/api/agent', {
@@ -562,9 +554,9 @@ function App() {
   }
 
   const backendUnreachable = backendStatus === 'unreachable'
-  const showComposer = !isLoading && !backendUnreachable
+  const showComposer = !backendUnreachable
   const activeSummary = sessions.find((s) => s.session_id === sessionId)
-  const hasOutput = Boolean(isLoading || result || error)
+  const hasOutput = Boolean(result || error)
 
   return (
     <div className="app-shell flex h-svh overflow-hidden bg-black text-white">
@@ -656,6 +648,7 @@ function App() {
               liveActivities={liveActivities}
               isWorking={isLoading || isPublishing}
               assistantMessage={result?.assistant_message}
+              pendingUserMessage={pendingUserMessage}
               quickActions={QUICK_ACTIONS}
               onQuickAction={selectExample}
             />
@@ -730,23 +723,6 @@ function App() {
                   <p className="max-w-sm text-center text-sm leading-relaxed text-neutral-500">
                     Output shows here — website preview, Meta ad draft, or publish status. Chats save in the sidebar.
                   </p>
-                </div>
-              )}
-
-              {isLoading && (
-                <div className="flex min-h-0 flex-1 flex-col animate-fade-in">
-                  <p className="shrink-0 border-b border-neutral-800 px-4 py-2 text-xs text-neutral-600">
-                    {submittedPrompt}
-                  </p>
-                  <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-                    <div className="w-full max-w-xl rounded-3xl border border-neutral-800 bg-neutral-950/90 p-5">
-                      <p className="text-[11px] uppercase tracking-[0.24em] text-neutral-500">Live reasoning</p>
-                      <p className="mt-3 text-lg font-medium text-white">AGI is working through your request</p>
-                      <p className="mt-2 text-sm leading-relaxed text-neutral-500">
-                        Real steps stream into the chat above as the pipeline routes, matches a template, and prepares the result.
-                      </p>
-                    </div>
-                  </div>
                 </div>
               )}
 

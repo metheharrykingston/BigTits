@@ -7,6 +7,10 @@ interface ChatThreadProps {
   liveActivities?: SessionActivity[]
   isWorking?: boolean
   assistantMessage?: string
+  pendingUserMessage?: {
+    content: string
+    at: string
+  } | null
   quickActions?: {
     label: string
     description: string
@@ -50,6 +54,7 @@ export function ChatThread({
   liveActivities = [],
   isWorking = false,
   assistantMessage,
+  pendingUserMessage = null,
   quickActions = [],
   onQuickAction,
   className = '',
@@ -64,6 +69,14 @@ export function ChatThread({
         role: m.role,
         content: m.content,
       })),
+      ...(pendingUserMessage
+        ? [{
+            kind: 'message' as const,
+            at: pendingUserMessage.at,
+            role: 'user' as const,
+            content: pendingUserMessage.content,
+          }]
+        : []),
       ...activities.map((a) => ({
         kind: 'activity' as const,
         at: a.at,
@@ -77,7 +90,7 @@ export function ChatThread({
     ]
     entries.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
     return entries
-  }, [messages, activities, liveActivities])
+  }, [messages, activities, liveActivities, pendingUserMessage])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
