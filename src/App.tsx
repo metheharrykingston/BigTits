@@ -18,6 +18,7 @@ import './index.css'
 
 interface CreateResponse extends AgentResponse {
   kind?: 'website' | 'agent' | string
+  stage?: string
   prompt?: string
   intent?: {
     message?: string
@@ -241,7 +242,9 @@ function App() {
     result?.route_type === 'create' ||
     result?.route_type === 'publish' ||
     Boolean(result?.post)
-  const previewSrc = isAgentResult ? null : getPreviewSrc(result?.previewUrl)
+  const isPlanningResult = result?.stage === 'planning'
+  const previewSrc =
+    isAgentResult || isPlanningResult ? null : getPreviewSrc(result?.previewUrl)
   const hasConversation = Boolean(
     result?.assistant_message || (result?.options && result.options.length > 0),
   )
@@ -563,6 +566,20 @@ function App() {
           projectPath: data.projectPath || prev?.projectPath,
           previewUrl: prev?.previewUrl || data.previewUrl,
         }))
+        setIsLoading(false)
+        setLiveActivities([])
+        stopSessionPolling()
+        await syncSessionState(activeSid)
+        return
+      }
+
+      if (data.stage === 'planning') {
+        setResult({
+          ...data,
+          kind: 'website',
+          projectPath: undefined,
+          previewUrl: undefined,
+        })
         setIsLoading(false)
         setLiveActivities([])
         stopSessionPolling()
@@ -993,7 +1010,27 @@ function App() {
                 />
               )}
 
-              {result && result.success && result.projectPath && !isAgentResult && (
+              {result && result.success && isPlanningResult && (
+                <div className="flex h-full min-h-0 flex-col animate-fade-in">
+                  <div className="shrink-0 border-b border-neutral-800 px-4 py-4">
+                    <p className="text-sm font-medium text-white">Planning your website</p>
+                    <p className="mt-1 text-xs text-neutral-500">
+                      Answer a few quick questions so the build matches your business — not a raw template dump.
+                    </p>
+                  </div>
+                  <div className="scroll-area min-h-0 flex-1 px-4 py-4">
+                    <AgentOptions
+                      assistantMessage={result.assistant_message}
+                      options={result.options}
+                      autoContinueAfterMs={result.auto_continue_after_ms}
+                      onSelect={handleSelectOption}
+                      disabled={isLoading}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {result && result.success && result.projectPath && !isAgentResult && !isPlanningResult && (
               <div className="flex h-full min-h-0 flex-col animate-fade-in">
                 {hasConversation && (
                   <div className="shrink-0 border-b border-neutral-800 px-4 py-3">
