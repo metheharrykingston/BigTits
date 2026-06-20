@@ -2,7 +2,23 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/((?!api/).*)",
+      "source": "/api/:path*",
+      "destination": "https://bigtits-api-production.up.railway.app/api/:path*"
+    },
+    {
+      "source": "/ready",
+      "destination": "https://bigtits-api-production.up.railway.app/ready"
+    },
+    {
+      "source": "/health",
+      "destination": "https://bigtits-api-production.up.railway.app/health"
+    },
+    {
+      "source": "/preview/:path*",
+      "destination": "https://bigtits-api-production.up.railway.app/preview/:path*"
+    },
+    {
+      "source": "/((?!api/|preview/|ready|health).*)",
       "destination": "/index.html"
     }
   ]

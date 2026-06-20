@@ -10,7 +10,8 @@
     "android:clean": "./build_android_twa.sh --clean",
     "android:release": "./build_android_twa.sh --release",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "vercel:deploy": "vercel --prod"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.0",
@@ -30,6 +31,7 @@
     "globals": "^17.6.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
+    "vercel": "^54.14.2",
     "vite": "^8.0.12"
   }
 }
