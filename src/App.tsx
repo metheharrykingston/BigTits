@@ -32,6 +32,17 @@ interface CreateResponse extends AgentResponse {
   variables?: Record<string, string>
 }
 
+function restoredResultFromSnapshot(snapshot: SessionSnapshot): CreateResponse | null {
+  const restore = snapshot.restore as CreateResponse | null | undefined
+  if (!restore) return null
+  return {
+    ...restore,
+    success: restore.success ?? true,
+    session_id: snapshot.session_id,
+    kind: restore.kind || snapshot.kind,
+  }
+}
+
 const SESSION_KEY = 'bigtits-agent-session'
 
 const EXAMPLE_PROMPTS = [
@@ -181,6 +192,7 @@ function App() {
   const [isPublishing, setIsPublishing] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const pollTimerRef = useRef<number | null>(null)
+  const activeRequestRef = useRef(0)
 
   const isAgentResult =
     result?.kind === 'agent' ||
@@ -210,18 +222,7 @@ function App() {
     setMessages(snapshot.messages || [])
     setActivities(snapshot.activities || [])
     setLiveActivities([])
-
-    const restore = snapshot.restore as CreateResponse | null | undefined
-    if (restore) {
-      setResult({
-        ...restore,
-        success: restore.success ?? true,
-        session_id: snapshot.session_id,
-        kind: restore.kind || snapshot.kind,
-      })
-    } else {
-      setResult(null)
-    }
+    setResult(restoredResultFromSnapshot(snapshot))
     setError('')
     setErrorHint('')
   }, [])
@@ -230,6 +231,21 @@ function App() {
     setSessionTitle(snapshot.title)
     setMessages(snapshot.messages || [])
     setActivities(snapshot.activities || [])
+    setResult((prev) => {
+      const restored = restoredResultFromSnapshot(snapshot)
+      if (restored) {
+        return {
+          ...prev,
+          ...restored,
+          session_id: snapshot.session_id,
+          kind: restored.kind || prev?.kind,
+        }
+      }
+      if (prev?.session_id === snapshot.session_id && snapshot.kind === 'empty') {
+        return null
+      }
+      return prev
+    })
   }, [])
 
   const loadSessionById = useCallback(async (id: string) => {
@@ -293,6 +309,8 @@ function App() {
 
   const startNewChat = async () => {
     try {
+      activeRequestRef.current += 1
+      stopSessionPolling()
       const id = await createSession()
       setSessionId(id)
       localStorage.setItem(SESSION_KEY, id)
@@ -313,7 +331,13 @@ function App() {
 
   const handleSelectSession = async (id: string) => {
     if (id === sessionId && messages.length > 0) return
+    activeRequestRef.current += 1
+    stopSessionPolling()
     setIsLoading(false)
+    setResult(null)
+    setMessages([])
+    setActivities([])
+    setLiveActivities([])
     await loadSessionById(id)
     if (isMobile) setSidebarCollapsed(true)
   }
@@ -352,6 +376,8 @@ function App() {
 
   const runDemo = async (finalPrompt: string, opts?: { keepResult?: boolean }) => {
     if (!finalPrompt.trim() || isLoading) return
+    const requestId = activeRequestRef.current + 1
+    activeRequestRef.current = requestId
 
     let ensuredSessionId = sessionId
     if (!ensuredSessionId) {
@@ -390,6 +416,7 @@ function App() {
       })
 
       const data = await readApiJson<CreateResponse & { hint?: string; details?: string }>(res)
+      if (requestId !== activeRequestRef.current) return
 
       if (!res.ok || !data.success) {
         const coreDown = /fetch failed|ECONNREFUSED|unreachable|not responding/i.test(
@@ -461,6 +488,7 @@ function App() {
       stopSessionPolling()
       await syncSessionState(activeSid)
     } catch (err) {
+      if (requestId !== activeRequestRef.current) return
       setError('Could not connect to the generator')
       setErrorHint(
         err instanceof Error
@@ -470,7 +498,7 @@ function App() {
             : 'Run npm run dev from the repo root (starts Core :8000, API :3001, app :5173).',
       )
     } finally {
-      if (!generationSucceeded) {
+      if (requestId === activeRequestRef.current && !generationSucceeded) {
         setIsLoading(false)
         setLiveActivities([])
         stopSessionPolling()
