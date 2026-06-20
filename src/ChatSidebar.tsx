@@ -108,13 +108,6 @@ export function ChatSidebar({
           </button>
           <button
             type="button"
-            onClick={onNewChat}
-            className="border border-neutral-700 px-2 py-0.5 text-[11px] text-neutral-300 hover:border-neutral-500 hover:text-white"
-          >
-            New
-          </button>
-          <button
-            type="button"
             onClick={onToggle}
             className="flex h-6 w-6 items-center justify-center text-neutral-500 hover:text-white"
             aria-label="Collapse sidebar"
@@ -171,16 +164,31 @@ export function ChatSidebar({
                   <button
                     type="button"
                     onClick={() => onDelete(session.session_id)}
-                    className="mt-0.5 shrink-0 px-1 text-[10px] text-neutral-700 opacity-0 transition group-hover:opacity-100 hover:text-red-400"
+                    className={`mt-0.5 shrink-0 rounded-md border px-2 py-1 text-[10px] transition hover:border-red-500/50 hover:text-red-300 ${
+                      active
+                        ? 'border-red-900/40 text-red-300'
+                        : 'border-neutral-800 text-neutral-500 opacity-100 md:opacity-0 md:group-hover:opacity-100'
+                    }`}
                     aria-label="Delete chat"
                   >
-                    ×
+                    Delete
                   </button>
                 </div>
               </li>
             )
           })}
         </ul>
+      </div>
+
+      <div className="border-t border-neutral-800 p-3">
+        <button
+          type="button"
+          onClick={onNewChat}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-violet-700/60 bg-violet-500/10 px-4 py-3 text-sm font-medium text-violet-100 transition hover:border-violet-500 hover:bg-violet-500/20"
+        >
+          <span className="text-base leading-none">+</span>
+          <span>Start new chat</span>
+        </button>
       </div>
     </aside>
   )
