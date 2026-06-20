@@ -6,14 +6,21 @@ import {
   type SessionSummary,
 } from './lib/sessions'
 
+interface SidebarUser {
+  name: string
+  email: string
+}
+
 interface ChatSidebarProps {
   sessions: SessionSummary[]
   activeSessionId: string
   loading: boolean
   collapsed: boolean
+  user: SidebarUser
   onSelect: (sessionId: string) => void
   onNewChat: () => void
   onDelete: (sessionId: string) => void
+  onSignOut: () => void
   onToggle: () => void
 }
 
@@ -37,11 +44,20 @@ export function ChatSidebar({
   activeSessionId,
   loading,
   collapsed,
+  user,
   onSelect,
   onNewChat,
   onDelete,
+  onSignOut,
   onToggle,
 }: ChatSidebarProps) {
+  const initials = user.name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || 'U'
+
   if (collapsed) {
     return (
       <div className="chat-sidebar-rail flex h-full max-h-svh w-11 shrink-0 flex-col items-center border-r border-neutral-800 bg-neutral-950 py-3">
@@ -69,9 +85,27 @@ export function ChatSidebar({
 
   return (
     <aside className="chat-sidebar-panel flex h-full max-h-svh w-[260px] shrink-0 flex-col border-r border-neutral-800 bg-neutral-950">
+      <div className="border-b border-neutral-800 px-3 py-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900 text-xs font-semibold text-white">
+            {initials}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-neutral-100">{user.name}</p>
+            <p className="truncate text-[11px] text-neutral-500">{user.email}</p>
+          </div>
+        </div>
+      </div>
       <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-2.5">
-        <p className="text-xs font-medium uppercase tracking-wider text-neutral-500">Chats</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-neutral-500">Your chats</p>
         <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onSignOut}
+            className="border border-neutral-800 px-2 py-0.5 text-[11px] text-neutral-500 hover:border-neutral-600 hover:text-neutral-200"
+          >
+            Sign out
+          </button>
           <button
             type="button"
             onClick={onNewChat}
@@ -98,7 +132,7 @@ export function ChatSidebar({
         )}
         {!loading && sessions.length === 0 && (
           <p className="px-2 py-3 text-xs leading-relaxed text-neutral-600">
-            No saved chats yet. Start one — sessions persist on the API server so you can resume without new AI calls.
+            No chats yet for this login. Start one and it will stay attached to your app profile on this device.
           </p>
         )}
         <ul className="space-y-1">

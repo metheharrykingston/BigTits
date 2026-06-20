@@ -39,6 +39,11 @@ interface PendingUserMessage {
   at: string
 }
 
+interface UserProfile {
+  name: string
+  email: string
+}
+
 function restoredResultFromSnapshot(snapshot: SessionSnapshot): CreateResponse | null {
   const restore = snapshot.restore as CreateResponse | null | undefined
   if (!restore) return null
@@ -50,7 +55,59 @@ function restoredResultFromSnapshot(snapshot: SessionSnapshot): CreateResponse |
   }
 }
 
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase()
+}
+
+function loadUserProfile(): UserProfile | null {
+  try {
+    const raw = localStorage.getItem(USER_PROFILE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as UserProfile
+    if (!parsed?.name || !parsed?.email) return null
+    return { name: parsed.name.trim(), email: normalizeEmail(parsed.email) }
+  } catch {
+    return null
+  }
+}
+
+function saveUserProfile(profile: UserProfile | null) {
+  if (!profile) {
+    localStorage.removeItem(USER_PROFILE_KEY)
+    return
+  }
+  localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile))
+}
+
+function loadUserSessionMap(): Record<string, string[]> {
+  try {
+    return JSON.parse(localStorage.getItem(USER_SESSION_MAP_KEY) || '{}') as Record<string, string[]>
+  } catch {
+    return {}
+  }
+}
+
+function readOwnedSessionIds(email: string): string[] {
+  return loadUserSessionMap()[normalizeEmail(email)] || []
+}
+
+function saveOwnedSessionId(email: string, sessionId: string) {
+  const key = normalizeEmail(email)
+  const map = loadUserSessionMap()
+  map[key] = Array.from(new Set([...(map[key] || []), sessionId]))
+  localStorage.setItem(USER_SESSION_MAP_KEY, JSON.stringify(map))
+}
+
+function removeOwnedSessionId(email: string, sessionId: string) {
+  const key = normalizeEmail(email)
+  const map = loadUserSessionMap()
+  map[key] = (map[key] || []).filter((id) => id !== sessionId)
+  localStorage.setItem(USER_SESSION_MAP_KEY, JSON.stringify(map))
+}
+
 const SESSION_KEY = 'bigtits-agent-session'
+const USER_PROFILE_KEY = 'bigtits-user-profile'
+const USER_SESSION_MAP_KEY = 'bigtits-user-session-map'
 
 const EXAMPLE_PROMPTS = [
   { label: 'Meta ad campaign', prompt: 'Make a meta ad campaign for my coffee shop targeting local customers' },
@@ -168,6 +225,9 @@ function ExternalLinkIcon() {
 }
 
 function App() {
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => loadUserProfile())
+  const [loginName, setLoginName] = useState('')
+  const [loginEmail, setLoginEmail] = useState('')
   const [prompt, setPrompt] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [result, setResult] = useState<CreateResponse | null>(null)
@@ -200,6 +260,8 @@ function App() {
   const hasConversation = Boolean(
     result?.assistant_message || (result?.options && result.options.length > 0),
   )
+  const ownedSessionIds = userProfile ? readOwnedSessionIds(userProfile.email) : []
+  const visibleSessions = sessions.filter((session) => ownedSessionIds.includes(session.session_id))
 
   const refreshSessions = useCallback(async () => {
     try {
@@ -260,7 +322,9 @@ function App() {
     const boot = async () => {
       await refreshSessions()
       const saved = localStorage.getItem(SESSION_KEY)
-      if (!cancelled && saved) {
+      const profile = loadUserProfile()
+      const owned = profile ? readOwnedSessionIds(profile.email) : []
+      if (!cancelled && saved && owned.includes(saved)) {
         await loadSessionById(saved)
       }
     }
@@ -311,6 +375,7 @@ function App() {
       activeRequestRef.current += 1
       stopSessionPolling()
       const id = await createSession()
+      if (userProfile) saveOwnedSessionId(userProfile.email, id)
       setSessionId(id)
       localStorage.setItem(SESSION_KEY, id)
       setSessionTitle('New chat')
@@ -344,6 +409,7 @@ function App() {
 
   const handleDeleteSession = async (id: string) => {
     await deleteSession(id)
+    if (userProfile) removeOwnedSessionId(userProfile.email, id)
     await refreshSessions()
     if (id === sessionId) {
       await startNewChat()
@@ -382,6 +448,7 @@ function App() {
     let ensuredSessionId = sessionId
     if (!ensuredSessionId) {
       ensuredSessionId = await createSession()
+      if (userProfile) saveOwnedSessionId(userProfile.email, ensuredSessionId)
       setSessionId(ensuredSessionId)
       localStorage.setItem(SESSION_KEY, ensuredSessionId)
       setSessionTitle('New chat')
@@ -524,6 +591,53 @@ function App() {
     runDemo(option.prompt, { keepResult: true })
   }
 
+  const handleLogin = (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    const name = loginName.trim()
+    const email = normalizeEmail(loginEmail)
+    if (!name || !email) return
+    const profile = { name, email }
+    saveUserProfile(profile)
+    setUserProfile(profile)
+    setLoginName('')
+    setLoginEmail('')
+
+    const owned = readOwnedSessionIds(email)
+    const latestOwned = sessions.find((session) => owned.includes(session.session_id))
+    if (latestOwned) {
+      localStorage.setItem(SESSION_KEY, latestOwned.session_id)
+      void loadSessionById(latestOwned.session_id)
+      return
+    }
+
+    localStorage.removeItem(SESSION_KEY)
+    setSessionId('')
+    setSessionTitle('New chat')
+    setMessages([])
+    setActivities([])
+    setLiveActivities([])
+    setPendingUserMessage(null)
+    setResult(null)
+  }
+
+  const handleSignOut = () => {
+    activeRequestRef.current += 1
+    stopSessionPolling()
+    saveUserProfile(null)
+    localStorage.removeItem(SESSION_KEY)
+    setUserProfile(null)
+    setSessionId('')
+    setSessionTitle('New chat')
+    setMessages([])
+    setActivities([])
+    setLiveActivities([])
+    setPendingUserMessage(null)
+    setResult(null)
+    setPrompt('')
+    setError('')
+    setErrorHint('')
+  }
+
   const publishCampaign = async () => {
     if (!sessionId || isPublishing) return
     setIsPublishing(true)
@@ -557,19 +671,68 @@ function App() {
 
   const backendUnreachable = backendStatus === 'unreachable'
   const showComposer = !backendUnreachable
-  const activeSummary = sessions.find((s) => s.session_id === sessionId)
+  const activeSummary = visibleSessions.find((s) => s.session_id === sessionId)
   const hasOutput = Boolean(result || error)
+
+  if (!userProfile) {
+    return (
+      <div className="flex h-svh items-center justify-center bg-black px-4 text-white">
+        <div className="login-card w-full max-w-sm rounded-[28px] border border-neutral-800 bg-neutral-950 p-6 shadow-2xl animate-fade-in">
+          <div className="mb-6 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-neutral-800 bg-black text-sm font-semibold text-white">
+              AGI
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight text-white">Welcome back</h1>
+            <p className="mt-2 text-sm leading-relaxed text-neutral-500">
+              Sign in to keep your chats tied to your app profile on this device and continue where you left off.
+            </p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-3">
+            <label className="block">
+              <span className="mb-1.5 block text-xs uppercase tracking-wider text-neutral-500">Name</span>
+              <input
+                value={loginName}
+                onChange={(e) => setLoginName(e.target.value)}
+                placeholder="Your name"
+                className="w-full rounded-2xl border border-neutral-800 bg-black px-4 py-3 text-sm text-white outline-none transition focus:border-neutral-600"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs uppercase tracking-wider text-neutral-500">Email</span>
+              <input
+                type="email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full rounded-2xl border border-neutral-800 bg-black px-4 py-3 text-sm text-white outline-none transition focus:border-neutral-600"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={!loginName.trim() || !loginEmail.trim()}
+              className="w-full rounded-2xl bg-white px-4 py-3 text-sm font-medium text-black transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Continue to chats
+            </button>
+          </form>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="app-shell flex h-svh overflow-hidden bg-black text-white">
       <ChatSidebar
-        sessions={sessions}
+        sessions={visibleSessions}
         activeSessionId={sessionId}
         loading={sessionsLoading}
         collapsed={sidebarCollapsed}
+        user={userProfile}
         onSelect={handleSelectSession}
         onNewChat={startNewChat}
         onDelete={handleDeleteSession}
+        onSignOut={handleSignOut}
         onToggle={() => setSidebarCollapsed((v) => !v)}
       />
       {!sidebarCollapsed && (
@@ -596,8 +759,13 @@ function App() {
                 </svg>
               </button>
             )}
-            <div className="flex h-6 w-6 shrink-0 items-center justify-center border border-neutral-700">
-              <span className="text-[10px] font-bold tracking-tighter">BT</span>
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900 text-[10px] font-semibold text-white">
+              {userProfile.name
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((part) => part[0]?.toUpperCase() || '')
+                .join('') || 'U'}
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-medium tracking-tight text-neutral-200">

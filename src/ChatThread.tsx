@@ -104,7 +104,7 @@ export function ChatThread({
         {!hasContent && (
           <div className="mobile-welcome flex h-full flex-col items-center justify-center text-center">
             <div className="welcome-mark mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-neutral-800 bg-neutral-950 shadow-2xl">
-              <span className="text-base font-bold tracking-tighter text-white">BT</span>
+              <span className="text-base font-semibold tracking-tight text-white">AGI</span>
             </div>
             <p className="text-balance text-2xl font-semibold tracking-tight text-white">
               What should your AGI build?
