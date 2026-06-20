@@ -30,6 +30,8 @@ interface CreateResponse extends AgentResponse {
   previewPort?: number
   nextSteps?: string[]
   variables?: Record<string, string>
+  projectFiles?: string[]
+  fileCount?: number
 }
 
 interface PendingUserMessage {
@@ -772,7 +774,11 @@ function App() {
                 <div className="project-toolbar flex shrink-0 items-center justify-between gap-3 border-b border-neutral-800 px-4 py-2.5">
                   <div>
                     <p className="text-sm text-white">Project ready</p>
-                    <p className="text-xs text-neutral-500">Saved in this chat session — resume anytime from sidebar</p>
+                    <p className="text-xs text-neutral-500">
+                      {result.fileCount
+                        ? `${result.fileCount} real project files created and saved in this chat session`
+                        : 'Saved in this chat session — resume anytime from sidebar'}
+                    </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     {previewSrc && (
@@ -817,12 +823,43 @@ function App() {
                 </div>
 
                 {previewSrc ? (
-                  <iframe
-                    src={previewSrc}
-                    className="preview-frame block h-full min-h-[240px] w-full flex-1 border-0 bg-white"
-                    title="Live project preview"
-                    allow="fullscreen"
-                  />
+                  <div className="flex min-h-0 flex-1 flex-col md:grid md:grid-cols-[minmax(0,0.72fr)_minmax(260px,0.28fr)]">
+                    <iframe
+                      src={previewSrc}
+                      className="preview-frame block min-h-[240px] w-full flex-1 border-0 bg-white"
+                      title="Live project preview"
+                      allow="fullscreen"
+                    />
+                    <div className="border-t border-neutral-800 bg-neutral-950 md:min-h-0 md:border-l md:border-t-0">
+                      <div className="border-b border-neutral-800 px-4 py-3">
+                        <p className="text-sm text-white">Generated files</p>
+                        <p className="text-xs text-neutral-500">
+                          Real files copied into this project folder
+                        </p>
+                      </div>
+                      <div className="scroll-area h-full max-h-[280px] overflow-y-auto px-4 py-3 md:max-h-none">
+                        {result.projectFiles && result.projectFiles.length > 0 ? (
+                          <div className="space-y-1.5">
+                            {result.projectFiles.slice(0, 120).map((file) => (
+                              <div
+                                key={file}
+                                className="rounded-lg border border-neutral-900 bg-black/40 px-3 py-2 font-mono text-[11px] text-neutral-300"
+                              >
+                                {file}
+                              </div>
+                            ))}
+                            {result.projectFiles.length > 120 && (
+                              <p className="pt-1 text-xs text-neutral-500">
+                                Showing first 120 files out of {result.projectFiles.length}.
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-neutral-500">File list unavailable.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
                     {result.previewUrl && isLocalPreviewUrl(result.previewUrl) ? (
