@@ -469,15 +469,6 @@ function App() {
     const requestId = activeRequestRef.current + 1
     activeRequestRef.current = requestId
 
-    let ensuredSessionId = sessionId
-    if (!ensuredSessionId) {
-      ensuredSessionId = await createSession()
-      setSessionId(ensuredSessionId)
-      localStorage.setItem(SESSION_KEY, ensuredSessionId)
-      setSessionTitle('New chat')
-      await refreshSessions()
-    }
-
     setIsLoading(true)
     setError('')
     setErrorHint('')
@@ -491,10 +482,21 @@ function App() {
     setPrompt('')
 
     let generationSucceeded = false
-    let activeSid = ensuredSessionId
-    startSessionPolling(activeSid)
+    let activeSid = sessionId
 
     try {
+      let ensuredSessionId = activeSid
+      if (!ensuredSessionId) {
+        ensuredSessionId = await createSession()
+        setSessionId(ensuredSessionId)
+        localStorage.setItem(SESSION_KEY, ensuredSessionId)
+        setSessionTitle('New chat')
+        await refreshSessions()
+      }
+
+      activeSid = ensuredSessionId
+      startSessionPolling(activeSid)
+
       const res = await apiFetch('/api/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -574,7 +576,7 @@ function App() {
       await syncSessionState(activeSid)
     } catch (err) {
       if (requestId !== activeRequestRef.current) return
-      setError('Could not connect to the generator')
+      setError('Could not start this request')
       setErrorHint(
         err instanceof Error
           ? err.message

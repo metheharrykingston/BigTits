@@ -66,6 +66,8 @@ textarea {
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
 }
 
 .app-shell {
@@ -149,12 +151,17 @@ textarea {
   }
 
   .app-main-grid.has-output {
-    grid-template-rows: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 0.95fr) minmax(220px, 1.05fr);
   }
 
-  .app-main-grid.chat-only .result-pane,
-  .app-main-grid.has-output .result-pane {
+  .app-main-grid.chat-only .result-pane {
     display: none;
+  }
+
+  .app-main-grid.has-output .result-pane {
+    display: flex;
+    min-height: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
   }
 
   .mobile-chat-followup {
@@ -177,6 +184,11 @@ textarea {
 
   .chat-pane .scroll-area {
     padding: 0.75rem;
+  }
+
+  .chat-pane,
+  .result-pane {
+    min-height: 0;
   }
 
   .composer-panel {
