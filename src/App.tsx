@@ -246,6 +246,18 @@ function App() {
     result?.assistant_message || (result?.options && result.options.length > 0),
   )
   const visibleSessions = sessions
+  const latestActivity = [...activities, ...liveActivities]
+    .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+    .at(-1)
+  const showLiveStatus = Boolean(
+    latestActivity &&
+      (
+        isLoading ||
+        isPublishing ||
+        latestActivity.status === 'running' ||
+        Date.now() - new Date(latestActivity.at).getTime() < 120000
+      ),
+  )
 
   const refreshSessions = useCallback(async () => {
     try {
@@ -853,12 +865,29 @@ function App() {
               messages={messages}
               activities={activities}
               liveActivities={liveActivities}
+              showActivities={false}
               isWorking={isLoading || isPublishing}
               assistantMessage={result?.assistant_message}
               pendingUserMessage={pendingUserMessage}
               quickActions={QUICK_ACTIONS}
               onQuickAction={selectExample}
             />
+
+            {showLiveStatus && latestActivity && (
+              <div className="shrink-0 border-t border-neutral-900 bg-neutral-950/90 px-3 py-2">
+                <div className="mx-auto flex w-full max-w-xl items-start gap-2 rounded-xl border border-neutral-800/80 bg-black/40 px-3 py-2 font-mono text-[11px]">
+                  <span className={`${latestActivity.status === 'error' ? 'text-red-400' : latestActivity.status === 'done' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {latestActivity.status === 'error' ? '✕' : latestActivity.status === 'done' ? '✓' : '◌'}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-neutral-300">{latestActivity.label}</p>
+                    {latestActivity.detail && (
+                      <p className="truncate text-neutral-600">{latestActivity.detail}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {hasConversation && (
               <div className="mobile-chat-followup shrink-0 border-t border-neutral-800 px-3 py-3">

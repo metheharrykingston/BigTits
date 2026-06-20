@@ -5,6 +5,7 @@ interface ChatThreadProps {
   messages: ChatMessage[]
   activities: SessionActivity[]
   liveActivities?: SessionActivity[]
+  showActivities?: boolean
   isWorking?: boolean
   assistantMessage?: string
   pendingUserMessage?: {
@@ -52,6 +53,7 @@ export function ChatThread({
   messages,
   activities,
   liveActivities = [],
+  showActivities = false,
   isWorking = false,
   assistantMessage,
   pendingUserMessage = null,
@@ -77,20 +79,24 @@ export function ChatThread({
             content: pendingUserMessage.content,
           }]
         : []),
-      ...activities.map((a) => ({
-        kind: 'activity' as const,
-        at: a.at,
-        activity: a,
-      })),
-      ...liveActivities.map((a) => ({
-        kind: 'activity' as const,
-        at: a.at,
-        activity: a,
-      })),
+      ...(showActivities
+        ? activities.map((a) => ({
+            kind: 'activity' as const,
+            at: a.at,
+            activity: a,
+          }))
+        : []),
+      ...(showActivities
+        ? liveActivities.map((a) => ({
+            kind: 'activity' as const,
+            at: a.at,
+            activity: a,
+          }))
+        : []),
     ]
     entries.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
     return entries
-  }, [messages, activities, liveActivities, pendingUserMessage])
+  }, [messages, activities, liveActivities, pendingUserMessage, showActivities])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
