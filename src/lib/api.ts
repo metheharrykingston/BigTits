@@ -4,6 +4,7 @@
  * Only set VITE_API_URL when you intentionally bypass the proxy (e.g. direct Railway).
  */
 const EXPLICIT = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+const AUTH_TOKEN_KEY = 'bigtits-auth-token'
 
 export function apiUrl(path: string): string {
   const normalized = path.startsWith('/') ? path : `/${path}`
@@ -17,10 +18,30 @@ export function apiHint(): string {
   return 'API: Vite proxy → http://127.0.0.1:3001 (run npm run dev from repo root)'
 }
 
+export function getAuthToken(): string {
+  return localStorage.getItem(AUTH_TOKEN_KEY) || ''
+}
+
+export function setAuthToken(token: string | null) {
+  if (!token) {
+    localStorage.removeItem(AUTH_TOKEN_KEY)
+    return
+  }
+  localStorage.setItem(AUTH_TOKEN_KEY, token)
+}
+
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   const url = apiUrl(path)
+  const token = getAuthToken()
+  const headers = new Headers(init?.headers || undefined)
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
   try {
-    return await fetch(url, init)
+    return await fetch(url, {
+      ...init,
+      headers,
+    })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     throw new Error(`${msg} — ${apiHint()}`)

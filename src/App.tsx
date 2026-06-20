@@ -3,7 +3,7 @@ import { AgentOptions, type FollowUpOption } from './AgentOptions'
 import { CampaignPanel, type AgentResponse } from './CampaignPanel'
 import { ChatSidebar } from './ChatSidebar'
 import { ChatThread } from './ChatThread'
-import { apiFetch, apiHint, apiUrl, readApiJson } from './lib/api'
+import { apiFetch, apiHint, apiUrl, getAuthToken, readApiJson, setAuthToken } from './lib/api'
 import {
   createSession,
   deleteSession,
@@ -44,6 +44,18 @@ interface UserProfile {
   email: string
 }
 
+interface LoginResponse {
+  success: boolean
+  token?: string
+  user?: UserProfile
+  error?: string
+}
+
+interface AuthMeResponse {
+  success: boolean
+  user?: UserProfile
+}
+
 function restoredResultFromSnapshot(snapshot: SessionSnapshot): CreateResponse | null {
   const restore = snapshot.restore as CreateResponse | null | undefined
   if (!restore) return null
@@ -79,35 +91,8 @@ function saveUserProfile(profile: UserProfile | null) {
   localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile))
 }
 
-function loadUserSessionMap(): Record<string, string[]> {
-  try {
-    return JSON.parse(localStorage.getItem(USER_SESSION_MAP_KEY) || '{}') as Record<string, string[]>
-  } catch {
-    return {}
-  }
-}
-
-function readOwnedSessionIds(email: string): string[] {
-  return loadUserSessionMap()[normalizeEmail(email)] || []
-}
-
-function saveOwnedSessionId(email: string, sessionId: string) {
-  const key = normalizeEmail(email)
-  const map = loadUserSessionMap()
-  map[key] = Array.from(new Set([...(map[key] || []), sessionId]))
-  localStorage.setItem(USER_SESSION_MAP_KEY, JSON.stringify(map))
-}
-
-function removeOwnedSessionId(email: string, sessionId: string) {
-  const key = normalizeEmail(email)
-  const map = loadUserSessionMap()
-  map[key] = (map[key] || []).filter((id) => id !== sessionId)
-  localStorage.setItem(USER_SESSION_MAP_KEY, JSON.stringify(map))
-}
-
 const SESSION_KEY = 'bigtits-agent-session'
 const USER_PROFILE_KEY = 'bigtits-user-profile'
-const USER_SESSION_MAP_KEY = 'bigtits-user-session-map'
 
 const EXAMPLE_PROMPTS = [
   { label: 'Meta ad campaign', prompt: 'Make a meta ad campaign for my coffee shop targeting local customers' },
@@ -260,8 +245,7 @@ function App() {
   const hasConversation = Boolean(
     result?.assistant_message || (result?.options && result.options.length > 0),
   )
-  const ownedSessionIds = userProfile ? readOwnedSessionIds(userProfile.email) : []
-  const visibleSessions = sessions.filter((session) => ownedSessionIds.includes(session.session_id))
+  const visibleSessions = sessions
 
   const refreshSessions = useCallback(async () => {
     try {
@@ -320,11 +304,41 @@ function App() {
     let cancelled = false
 
     const boot = async () => {
-      await refreshSessions()
+      const token = getAuthToken()
+      const savedProfile = loadUserProfile()
+      if (!token || !savedProfile) {
+        setSessionsLoading(false)
+        return
+      }
+
+      try {
+        const authRes = await apiFetch('/api/auth/me')
+        if (!authRes.ok) {
+          throw new Error('Authentication expired')
+        }
+        const authData = await readApiJson<AuthMeResponse>(authRes)
+        if (!authData.user) {
+          throw new Error('Authentication expired')
+        }
+        if (cancelled) return
+        saveUserProfile(authData.user)
+        setUserProfile(authData.user)
+        await refreshSessions()
+      } catch {
+        setAuthToken(null)
+        saveUserProfile(null)
+        localStorage.removeItem(SESSION_KEY)
+        if (!cancelled) {
+          setUserProfile(null)
+          setSessionId('')
+          setSessions([])
+          setSessionsLoading(false)
+        }
+        return
+      }
+
       const saved = localStorage.getItem(SESSION_KEY)
-      const profile = loadUserProfile()
-      const owned = profile ? readOwnedSessionIds(profile.email) : []
-      if (!cancelled && saved && owned.includes(saved)) {
+      if (!cancelled && saved) {
         await loadSessionById(saved)
       }
     }
@@ -375,7 +389,6 @@ function App() {
       activeRequestRef.current += 1
       stopSessionPolling()
       const id = await createSession()
-      if (userProfile) saveOwnedSessionId(userProfile.email, id)
       setSessionId(id)
       localStorage.setItem(SESSION_KEY, id)
       setSessionTitle('New chat')
@@ -409,7 +422,6 @@ function App() {
 
   const handleDeleteSession = async (id: string) => {
     await deleteSession(id)
-    if (userProfile) removeOwnedSessionId(userProfile.email, id)
     await refreshSessions()
     if (id === sessionId) {
       await startNewChat()
@@ -448,7 +460,6 @@ function App() {
     let ensuredSessionId = sessionId
     if (!ensuredSessionId) {
       ensuredSessionId = await createSession()
-      if (userProfile) saveOwnedSessionId(userProfile.email, ensuredSessionId)
       setSessionId(ensuredSessionId)
       localStorage.setItem(SESSION_KEY, ensuredSessionId)
       setSessionTitle('New chat')
@@ -591,38 +602,57 @@ function App() {
     runDemo(option.prompt, { keepResult: true })
   }
 
-  const handleLogin = (e?: React.FormEvent) => {
+  const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
     const name = loginName.trim()
     const email = normalizeEmail(loginEmail)
     if (!name || !email) return
-    const profile = { name, email }
-    saveUserProfile(profile)
-    setUserProfile(profile)
-    setLoginName('')
-    setLoginEmail('')
+    setError('')
+    setErrorHint('')
+    setSessionsLoading(true)
 
-    const owned = readOwnedSessionIds(email)
-    const latestOwned = sessions.find((session) => owned.includes(session.session_id))
-    if (latestOwned) {
-      localStorage.setItem(SESSION_KEY, latestOwned.session_id)
-      void loadSessionById(latestOwned.session_id)
-      return
+    try {
+      const res = await apiFetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email }),
+      })
+      const data = await readApiJson<LoginResponse>(res)
+      if (!res.ok || !data.success || !data.token || !data.user) {
+        setError(data.error || 'Could not sign in')
+        setSessionsLoading(false)
+        return
+      }
+
+      setAuthToken(data.token)
+      saveUserProfile(data.user)
+      setUserProfile(data.user)
+      setLoginName('')
+      setLoginEmail('')
+      localStorage.removeItem(SESSION_KEY)
+      setSessionId('')
+      setSessionTitle('New chat')
+      setMessages([])
+      setActivities([])
+      setLiveActivities([])
+      setPendingUserMessage(null)
+      setResult(null)
+      await refreshSessions()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not sign in')
+      setSessionsLoading(false)
     }
-
-    localStorage.removeItem(SESSION_KEY)
-    setSessionId('')
-    setSessionTitle('New chat')
-    setMessages([])
-    setActivities([])
-    setLiveActivities([])
-    setPendingUserMessage(null)
-    setResult(null)
   }
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     activeRequestRef.current += 1
     stopSessionPolling()
+    try {
+      await apiFetch('/api/auth/logout', { method: 'POST' })
+    } catch {
+      // Ignore logout request failures and clear local auth anyway.
+    }
+    setAuthToken(null)
     saveUserProfile(null)
     localStorage.removeItem(SESSION_KEY)
     setUserProfile(null)
@@ -633,6 +663,8 @@ function App() {
     setLiveActivities([])
     setPendingUserMessage(null)
     setResult(null)
+    setSessions([])
+    setSessionsLoading(false)
     setPrompt('')
     setError('')
     setErrorHint('')
@@ -715,6 +747,11 @@ function App() {
             >
               Continue to chats
             </button>
+            {error && (
+              <p className="rounded-2xl border border-red-900/40 bg-red-950/30 px-3 py-2 text-xs text-red-200">
+                {error}
+              </p>
+            )}
           </form>
         </div>
       </div>

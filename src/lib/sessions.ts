@@ -40,10 +40,6 @@ export interface SessionSnapshot extends SessionSummary {
   restore?: Record<string, unknown> | null
 }
 
-function newLocalSessionId(): string {
-  return crypto.randomUUID().replace(/-/g, '')
-}
-
 export async function fetchSessions(): Promise<SessionSummary[]> {
   try {
     const res = await apiFetch('/api/sessions')
@@ -56,16 +52,12 @@ export async function fetchSessions(): Promise<SessionSummary[]> {
 }
 
 export async function createSession(): Promise<string> {
-  try {
-    const res = await apiFetch('/api/sessions', { method: 'POST' })
-    if (res.ok) {
-      const data = await readApiJson<{ session_id?: string }>(res)
-      if (data.session_id) return data.session_id
-    }
-  } catch {
-    // API may be an older deploy without /api/sessions — first /api/create will ensureSession
+  const res = await apiFetch('/api/sessions', { method: 'POST' })
+  const data = await readApiJson<{ session_id?: string; error?: string }>(res)
+  if (!res.ok || !data.session_id) {
+    throw new Error(data.error || 'Could not create session')
   }
-  return newLocalSessionId()
+  return data.session_id
 }
 
 export async function fetchSession(sessionId: string): Promise<SessionSnapshot | null> {
