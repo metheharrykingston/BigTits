@@ -1,4 +1,4 @@
-package in.govcopilot.portalworkspace
+package io.govcopilot.portalworkspace
 
 object StopConditionDetector {
     private val defaultPause = listOf(

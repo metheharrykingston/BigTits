@@ -32,6 +32,7 @@ import {
   type UserPreferences,
 } from './lib/userPreferences'
 import { t } from './lib/localizedStrings'
+import { friendlyChecklistIntro } from './lib/govDocumentLabels'
 import './index.css'
 
 interface CreateResponse extends AgentResponse {
@@ -42,6 +43,7 @@ interface CreateResponse extends AgentResponse {
   gov_licence_type?: 'learner' | 'permanent'
   gov_intent_base?: string
   gov_case_id?: string
+  gov_checklist_state?: string
   gov_research?: ResearchRequirementsResponse
   prompt?: string
   intent?: {
@@ -631,10 +633,9 @@ function BigTitsHome() {
         gov_case_id: created.case_id,
         gov_intent_base: intent,
         gov_licence_type: licenceType as 'learner' | 'permanent',
+        gov_checklist_state: state,
         gov_research: research ?? undefined,
-        assistant_message: research
-          ? t(userPreferences.languageCode, 'gov_checklist_research', { message: research.message })
-          : t(userPreferences.languageCode, 'gov_checklist_fallback', { state }),
+        assistant_message: friendlyChecklistIntro(userPreferences.languageCode, state),
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not start paperwork case')
@@ -1292,6 +1293,8 @@ function BigTitsHome() {
               govChecklistCaseId={isGovChecklist ? result?.gov_case_id : undefined}
               govChecklistIntro={isGovChecklist ? result?.assistant_message : undefined}
               govChecklistResearch={isGovChecklist ? result?.gov_research : undefined}
+              govChecklistLanguageCode={userPreferences.languageCode}
+              govChecklistState={isGovChecklist ? result?.gov_checklist_state : undefined}
               onGovChecklistError={() => {
                 /* Portal errors stay inline in the checklist */
               }}

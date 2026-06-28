@@ -1,4 +1,4 @@
-package in.govcopilot.portalworkspace
+package io.govcopilot.portalworkspace
 
 import android.annotation.SuppressLint
 import android.webkit.WebSettings

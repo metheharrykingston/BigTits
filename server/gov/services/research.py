@@ -96,16 +96,15 @@ def research_requirements(body: ResearchRequirementsRequest) -> ResearchRequirem
         unique.append(item)
 
     checked = sum(1 for s in unique if s.status in {"checked", "found"})
+    place = state or "your state"
     message = (
-        f"Checked {checked} official web source{'s' if checked != 1 else ''} for "
-        f"{state or 'your state'} {licence} licence requirements."
+        f"Verified {checked} official source{'s' if checked != 1 else ''} for {place} {licence} licence."
         if checked
-        else f"Could not reach live sources — showing baseline requirements from {req.official_url}."
+        else f"Here is the usual document list for {place} {licence} licence (from {req.display_name})."
     )
 
     notes = (
-        f"Document list follows {req.display_name} guidance. "
-        f"State RTO rules for {state} may add extra proofs — confirm on the portal before you upload."
+        f"RTO rules in {state} can change — double-check on the portal before you upload."
         if state
         else "Confirm exact proofs on the official portal for your state."
     )

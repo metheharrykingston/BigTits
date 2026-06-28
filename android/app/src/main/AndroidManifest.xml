@@ -36,7 +36,7 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
             <activity
-            android:name="in.govcopilot.portalworkspace.PortalWorkspaceActivity"
+            android:name="io.govcopilot.portalworkspace.PortalWorkspaceActivity"
             android:exported="false"
             android:theme="@style/AppTheme.NoActionBarLaunch" />
     </application>

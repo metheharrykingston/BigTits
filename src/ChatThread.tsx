@@ -34,6 +34,8 @@ interface ChatThreadProps {
   govChecklistCaseId?: string
   govChecklistIntro?: string
   govChecklistResearch?: ResearchRequirementsResponse | null
+  govChecklistLanguageCode?: string
+  govChecklistState?: string
   onGovChecklistError?: (message: string) => void
   className?: string
 }
@@ -82,6 +84,8 @@ export function ChatThread({
   govChecklistCaseId,
   govChecklistIntro,
   govChecklistResearch,
+  govChecklistLanguageCode,
+  govChecklistState,
   onGovChecklistError,
   className = '',
 }: ChatThreadProps) {
@@ -274,6 +278,8 @@ export function ChatThread({
                     caseId={govChecklistCaseId}
                     intro={govChecklistIntro}
                     research={govChecklistResearch}
+                    languageCode={govChecklistLanguageCode}
+                    stateName={govChecklistState}
                     onError={onGovChecklistError}
                   />
                 )}
