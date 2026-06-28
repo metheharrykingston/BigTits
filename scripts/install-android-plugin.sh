@@ -13,6 +13,13 @@ fi
 
 DEST_JAVA="$ANDROID/app/src/main/java/io/govcopilot/portalworkspace"
 DEST_ASSETS="$ANDROID/app/src/main/assets"
+LEGACY_JAVA="$ANDROID/app/src/main/java/in/govcopilot/portalworkspace"
+
+# Kotlin treats `in` as a reserved keyword — remove stale copies from older installs.
+if [[ -d "$LEGACY_JAVA" ]]; then
+  rm -rf "$ANDROID/app/src/main/java/in"
+  echo "Removed legacy in.govcopilot plugin sources (invalid Kotlin package)."
+fi
 
 mkdir -p "$DEST_JAVA" "$DEST_ASSETS/adapters"
 cp -r "$PLUGIN_SRC/io/govcopilot/portalworkspace/"*.kt "$DEST_JAVA/"
