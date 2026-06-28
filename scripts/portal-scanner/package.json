@@ -1,0 +1,19 @@
+{
+  "name": "@gov-copilot/portal-scanner",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "scan": "tsx src/scan.ts",
+    "scan:headed": "tsx src/scan.ts --headed",
+    "install:browsers": "playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.52.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}

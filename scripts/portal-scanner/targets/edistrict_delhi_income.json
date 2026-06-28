@@ -1,0 +1,16 @@
+{
+  "id": "edistrict_delhi_income",
+  "portal_id": "edistrict_delhi",
+  "service_id": "income_certificate",
+  "adapter_version": "edistrict_income_certificate_v1",
+  "start_url": "https://edistrict.delhigovt.nic.in/",
+  "allowed_hosts": [
+    "edistrict.delhigovt.nic.in",
+    "serviceonline.gov.in"
+  ],
+  "navigation_hints": [
+    "Income Certificate",
+    "Apply Online",
+    "Citizen Login"
+  ]
+}

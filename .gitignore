@@ -12,11 +12,15 @@ dist
 dist-ssr
 *.local
 
-# Android/Gradle build output
-pwa-android-twa/.gradle/
-pwa-android-twa/build/
-pwa-android-twa/app/build/
-pwa-android-twa/local.properties
+# Capacitor native projects (generated via npx cap add)
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+ios/App/Pods/
+ios/App/build/
+ios/DerivedData/
+
 *.apk
 *.aab
 *.keystore

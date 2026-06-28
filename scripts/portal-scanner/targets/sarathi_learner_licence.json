@@ -1,0 +1,16 @@
+{
+  "id": "sarathi_learner_licence",
+  "portal_id": "sarathi_parivahan",
+  "service_id": "learner_licence",
+  "adapter_version": "sarathi_learner_licence_v1",
+  "start_url": "https://sarathi.parivahan.gov.in/sarathiservice/stateSelection.do",
+  "allowed_hosts": [
+    "sarathi.parivahan.gov.in",
+    "parivahan.gov.in"
+  ],
+  "navigation_hints": [
+    "Learner Licence",
+    "Application for LL",
+    "New Learner"
+  ]
+}

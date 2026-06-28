@@ -1,4 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react'
+import type { FollowUpOption } from './AgentOptions'
+import type { ResearchRequirementsResponse } from './types/gov-shared'
+import { GovChecklistInline } from './features/gov/components/GovChecklistInline'
+import { ActivityDetail } from './ActivityDetail'
+import { ThinkingIndicator } from './ThinkingIndicator'
+import { LinkifiedText } from './lib/linkify'
 import type { ChatMessage, SessionActivity } from './lib/sessions'
 
 interface ChatThreadProps {
@@ -7,6 +13,8 @@ interface ChatThreadProps {
   liveActivities?: SessionActivity[]
   showActivities?: boolean
   isWorking?: boolean
+  workingLabel?: string
+  thinkingSteps?: string[]
   assistantMessage?: string
   pendingUserMessage?: {
     content: string
@@ -20,6 +28,13 @@ interface ChatThreadProps {
     accent: string
   }[]
   onQuickAction?: (prompt: string) => void
+  followUpOptions?: FollowUpOption[]
+  onSelectFollowUp?: (option: FollowUpOption) => void
+  followUpDisabled?: boolean
+  govChecklistCaseId?: string
+  govChecklistIntro?: string
+  govChecklistResearch?: ResearchRequirementsResponse | null
+  onGovChecklistError?: (message: string) => void
   className?: string
 }
 
@@ -55,10 +70,19 @@ export function ChatThread({
   liveActivities = [],
   showActivities = false,
   isWorking = false,
+  workingLabel,
+  thinkingSteps = [],
   assistantMessage,
   pendingUserMessage = null,
   quickActions = [],
   onQuickAction,
+  followUpOptions = [],
+  onSelectFollowUp,
+  followUpDisabled = false,
+  govChecklistCaseId,
+  govChecklistIntro,
+  govChecklistResearch,
+  onGovChecklistError,
   className = '',
 }: ChatThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -100,9 +124,20 @@ export function ChatThread({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [timeline.length, isWorking, assistantMessage])
+  }, [timeline.length, isWorking, assistantMessage, followUpOptions.length, govChecklistCaseId])
 
-  const hasContent = timeline.length > 0 || Boolean(assistantMessage) || isWorking
+  const showThinkingBubble = isWorking
+  const showAssistantTurn =
+    Boolean(
+      assistantMessage &&
+        !govChecklistCaseId &&
+        !isWorking &&
+        !messages.some((m) => m.content === assistantMessage),
+    ) ||
+    followUpOptions.length > 0 ||
+    Boolean(govChecklistCaseId)
+
+  const hasContent = timeline.length > 0 || showAssistantTurn || showThinkingBubble
 
   return (
     <div className={`flex min-h-0 flex-1 flex-col ${className}`}>
@@ -158,7 +193,9 @@ export function ChatThread({
                     <p className="mb-1 text-[10px] font-medium uppercase tracking-wide opacity-50">
                       {isUser ? 'You' : 'Assistant'} · {formatTime(entry.at)}
                     </p>
-                    <p className="whitespace-pre-wrap break-words">{entry.content}</p>
+                    <p className="whitespace-pre-wrap break-words">
+                      <LinkifiedText text={entry.content} />
+                    </p>
                   </div>
                 </div>
               )
@@ -175,32 +212,75 @@ export function ChatThread({
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-neutral-300">{activity.label}</p>
-                  {activity.detail && (
-                    <p className="mt-0.5 truncate text-neutral-600">{activity.detail}</p>
-                  )}
+                  {activity.detail && <ActivityDetail detail={activity.detail} />}
                 </div>
                 <span className="shrink-0 text-neutral-700">{formatTime(activity.at)}</span>
               </div>
             )
           })}
 
-          {assistantMessage && !messages.some((m) => m.content === assistantMessage) && (
-            <div className="flex justify-start">
-              <div className="max-w-[92%] rounded-2xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5 text-sm text-neutral-300">
-                <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-neutral-600">
+          {showThinkingBubble && (
+            <div className="flex justify-start animate-fade-in">
+              <div className="max-w-[92%] rounded-2xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5">
+                <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-neutral-600">
                   Assistant
                 </p>
-                <p className="leading-relaxed">{assistantMessage}</p>
+                <ThinkingIndicator
+                  label={workingLabel || assistantMessage}
+                  steps={
+                    thinkingSteps.length > 0
+                      ? thinkingSteps
+                      : ['Thinking…']
+                  }
+                />
               </div>
             </div>
           )}
 
-          {isWorking && (
-            <div className="flex items-center gap-2 px-1 font-mono text-[11px] text-amber-400">
-              <span className="animate-pulse-dot">◌</span>
-              <span>Working…</span>
+          {showAssistantTurn && (
+            <div className="flex justify-start">
+              <div className="flex max-w-[92%] flex-col gap-2.5">
+                {assistantMessage && !messages.some((m) => m.content === assistantMessage) && (
+                  <div className="rounded-2xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5 text-sm text-neutral-300">
+                    <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-neutral-600">
+                      Assistant
+                    </p>
+                    <p className="leading-relaxed">
+                      <LinkifiedText text={assistantMessage} />
+                    </p>
+                  </div>
+                )}
+                {followUpOptions.length > 0 && (
+                  <div className="flex flex-wrap gap-2 px-0.5">
+                    {followUpOptions.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        disabled={followUpDisabled}
+                        onClick={() => onSelectFollowUp?.(option)}
+                        className={`rounded-full border px-3 py-1.5 text-xs transition disabled:opacity-40 ${
+                          option.recommended
+                            ? 'border-white text-white hover:bg-neutral-900'
+                            : 'border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-neutral-200'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {govChecklistCaseId && (
+                  <GovChecklistInline
+                    caseId={govChecklistCaseId}
+                    intro={govChecklistIntro}
+                    research={govChecklistResearch}
+                    onError={onGovChecklistError}
+                  />
+                )}
+              </div>
             </div>
           )}
+
           <div ref={bottomRef} />
         </div>
       </div>

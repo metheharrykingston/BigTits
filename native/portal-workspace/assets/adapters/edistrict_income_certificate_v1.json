@@ -1,0 +1,117 @@
+{
+  "portal_id": "edistrict_delhi",
+  "service_id": "income_certificate",
+  "adapter_version": "edistrict_income_certificate_v1",
+  "start_url": "https://edistrict.delhigovt.nic.in/",
+  "allowed_hosts": [
+    "edistrict.delhigovt.nic.in",
+    "serviceonline.gov.in"
+  ],
+  "pause_at": [
+    "otp",
+    "captcha",
+    "password",
+    "declaration",
+    "payment",
+    "submit",
+    "aadhaar authentication",
+    "face authentication",
+    "biometric",
+    "e-sign",
+    "digital signature"
+  ],
+  "steps": [
+    {
+      "step_id": "applicant_details",
+      "detect_by": {
+        "text_contains": ["Applicant Details", "Name of Applicant", "Applicant Name"],
+        "url_contains": ["applicant", "personal"]
+      },
+      "fields": [
+        {
+          "label_variants": ["Applicant Name", "Name of Applicant", "Full Name"],
+          "profile_key": "full_name",
+          "type": "text"
+        },
+        {
+          "label_variants": ["Father Name", "Father's Name", "Father/Husband Name"],
+          "profile_key": "father_name",
+          "type": "text"
+        },
+        {
+          "label_variants": ["Date of Birth", "DOB", "Birth Date"],
+          "profile_key": "dob",
+          "type": "date"
+        },
+        {
+          "label_variants": ["Mobile Number", "Mobile", "Contact Number"],
+          "profile_key": "mobile",
+          "type": "tel"
+        },
+        {
+          "label_variants": ["Email", "Email ID", "E-Mail"],
+          "profile_key": "email",
+          "type": "email"
+        },
+        {
+          "label_variants": ["Address", "Residential Address", "Current Address"],
+          "profile_key": "address_line1",
+          "type": "textarea"
+        },
+        {
+          "label_variants": ["District"],
+          "profile_key": "district",
+          "type": "text"
+        },
+        {
+          "label_variants": ["State", "State/UT"],
+          "profile_key": "state",
+          "type": "text"
+        },
+        {
+          "label_variants": ["Pincode", "PIN Code", "Postal Code"],
+          "profile_key": "pincode",
+          "type": "text"
+        },
+        {
+          "label_variants": ["Purpose", "Purpose of Certificate"],
+          "profile_key": "purpose",
+          "type": "text"
+        },
+        {
+          "label_variants": ["Annual Income", "Income Per Annum"],
+          "profile_key": "annual_income",
+          "type": "text"
+        }
+      ],
+      "next_instruction": "Review the filled fields carefully, then tap Save and Continue on the portal."
+    },
+    {
+      "step_id": "document_upload",
+      "detect_by": {
+        "text_contains": ["Upload Document", "Attach Document", "Document Upload"],
+        "url_contains": ["document", "upload"]
+      },
+      "uploads": [
+        {
+          "label_variants": ["Identity Proof", "ID Proof", "Aadhaar"],
+          "document_key": "identity_proof"
+        },
+        {
+          "label_variants": ["Address Proof", "Residence Proof"],
+          "document_key": "address_proof"
+        },
+        {
+          "label_variants": ["Income Proof", "Salary Slip", "Income Document"],
+          "document_key": "income_proof"
+        },
+        {
+          "label_variants": ["Photo", "Photograph", "Passport Size Photo"],
+          "document_key": "photo"
+        }
+      ],
+      "requires_user_approval_before_upload": true,
+      "next_instruction": "Approve each document before upload. Complete any declaration or payment steps yourself."
+    }
+  ]
+}

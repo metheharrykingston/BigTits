@@ -1,0 +1,8 @@
+{
+  "id": "fixture_income_form",
+  "portal_id": "edistrict_delhi",
+  "service_id": "income_certificate",
+  "adapter_version": "edistrict_income_certificate_v1",
+  "start_url": "file:///home/sammy/BigTits/app/scripts/portal-scanner/fixtures/sample_income_form.html",
+  "allowed_hosts": ["localhost"]
+}

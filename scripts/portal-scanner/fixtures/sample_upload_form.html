@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Document Upload</title>
+</head>
+<body>
+  <h2>Upload Document</h2>
+  <form>
+    <label for="id_proof">Identity Proof (Aadhaar)</label>
+    <input id="id_proof" type="file" accept="image/*,.pdf" />
+
+    <label for="addr_proof">Address Proof</label>
+    <input id="addr_proof" type="file" accept="image/*,.pdf" />
+
+    <label for="income_doc">Income Proof / Salary Slip</label>
+    <input id="income_doc" type="file" accept="image/*,.pdf" />
+
+    <label for="photo">Passport Size Photo</label>
+    <input id="photo" type="file" accept="image/*" />
+
+    <p>Please complete OTP verification before final submit.</p>
+    <button type="submit">Submit Application</button>
+  </form>
+</body>
+</html>

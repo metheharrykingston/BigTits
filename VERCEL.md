@@ -87,6 +87,7 @@ the API `PYTHON_CORE_URL` fix is applied.
 
 | Symptom | Fix |
 |---------|-----|
+| Login shows **Invalid JSON from API** | Browser: run `npm run dev` from repo root. Capacitor: rebuild app (needs `VITE_API_URL` or auto Railway default). |
 | Login shows **API error 404** | Redeploy Vercel after pulling — nested routes like `/api/auth/login` are proxied via `vercel.json` rewrites to Railway |
 | Status shows **Degraded** | API can't reach Core — fix `PYTHON_CORE_URL` on Railway API |
 | Status shows **Offline** | API service down or wrong URL |

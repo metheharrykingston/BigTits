@@ -1,0 +1,61 @@
+{
+  "version": "0.1.0",
+  "description": "BigTits Gov Copilot module — maps service definitions to portal adapters and runtime capabilities. Not a separate repo.",
+  "parent_product": "BigTits",
+  "monorepo_path": "app/",
+  "skills": [
+    {
+      "skill_id": "income_certificate",
+      "display_name": "Income Certificate (e-District Delhi)",
+      "portal_id": "edistrict_delhi",
+      "adapter_version": "edistrict_income_certificate_v1",
+      "registry": "services/registry.py",
+      "adapter": "adapters/edistrict_income_certificate_v1.json",
+      "status": "partial",
+      "capabilities": ["intake", "document_ocr", "portal_autofill", "voice_intake", "voice_confirm"]
+    },
+    {
+      "skill_id": "learner_licence",
+      "display_name": "Learner Driving Licence (Sarathi Parivahan)",
+      "portal_id": "sarathi_parivahan",
+      "adapter_version": null,
+      "registry": "services/registry.py",
+      "adapter": null,
+      "status": "planned",
+      "capabilities": ["intake"]
+    },
+    {
+      "skill_id": "voice_intake",
+      "display_name": "Voice Intake (STT/TTS)",
+      "portal_id": null,
+      "adapter_version": null,
+      "registry": null,
+      "adapter": null,
+      "status": "live",
+      "capabilities": ["speech_to_text", "text_to_speech"],
+      "runtime": "app/src/features/gov/voice/voiceService.ts"
+    },
+    {
+      "skill_id": "document_ocr",
+      "display_name": "Government Document OCR",
+      "portal_id": null,
+      "adapter_version": null,
+      "registry": null,
+      "adapter": null,
+      "status": "live",
+      "capabilities": ["vision_extract"],
+      "runtime": "app/server/gov/services/vision.py"
+    },
+    {
+      "skill_id": "portal_scanner",
+      "display_name": "Portal Adapter Scanner",
+      "portal_id": null,
+      "adapter_version": null,
+      "registry": null,
+      "adapter": null,
+      "status": "live",
+      "capabilities": ["playwright_scan", "draft_adapter", "adapter_diff"],
+      "runtime": "app/scripts/portal-scanner/"
+    }
+  ]
+}
